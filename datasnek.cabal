@@ -1,0 +1,115 @@
+cabal-version:   3.8
+
+name:           datasnek
+version:        0.1.0.0
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+
+common runtime-opts
+    ghc-options: -threaded -with-rtsopts=-N
+
+common warning-opts
+    ghc-options:
+      -fwarn-incomplete-patterns
+      -fno-show-error-context
+
+library
+  import:
+      runtime-opts
+    , warning-opts
+  hs-source-dirs:
+      src
+  exposed-modules:
+    , Api
+    , Bluefin.Concurrent.Local
+    , Bluefin.Extra
+    , Bluefin.Once
+    , Bluefin.Proxy
+    , Bluefin.Servant
+    , Broadcast
+    , Command
+    , Game
+    , GenUuid
+    , Lucid.Datastar
+    , JavaScript
+    , Queue
+    , QueueManager
+    , CommandManager
+    , ChatManager
+    , MainPageManager
+    , RenderHtml
+    , Random
+    , Snek
+    , Sleep
+    , Store
+    , Settings
+    , StoreUpdate
+    , User
+    , Message
+    , Color
+    , RawSse
+    , SnekWebComponent
+    , Css
+    , Favicon
+  data-files: static/snek.css
+  build-depends:
+      base >=4.7 && <5
+    , aeson
+    , async
+    , bluefin
+    , bluefin-internal
+    , bytestring
+    , clock
+    , strict-containers
+    , containers
+    , cookie
+    , dani-servant-lucid2
+    , file-embed
+    , http-api-data
+    , http-media
+    , http-types
+    , lucid2
+    , ki
+    , random ^>= 1.3
+    , servant
+    , servant-server
+    , stm
+    , text
+    , unagi-chan
+    , uuid
+    , warp
+  default-language: GHC2021
+  default-extensions:
+      BlockArguments
+    , DuplicateRecordFields
+    , ImportQualifiedPost
+    , InstanceSigs
+    , LambdaCase
+    , NoFieldSelectors
+    , OverloadedRecordDot
+    , OverloadedStrings
+    , TypeApplications
+    , TypeOperators
+
+executable datasnek
+  import:
+      runtime-opts
+    , warning-opts
+  main-is: Main.hs
+  hs-source-dirs:
+      app
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , bytestring
+    , text
+    , bluefin
+    , datasnek
+  default-language: GHC2021
+  default-extensions:
+      BlockArguments
+    , LambdaCase
+    , ImportQualifiedPost
+    , OverloadedStrings
+    , DerivingVia

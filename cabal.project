@@ -1,0 +1,15 @@
+packages:
+    .
+
+source-repository-package
+  type: git
+  location: https://github.com/tomjaguarpaw/bluefin.git
+  tag: 409f8e37ef4901e9e2846c3b7c42c03823765f4c
+  subdir: bluefin-internal
+
+
+source-repository-package
+  type: git
+  location: https://github.com/tomjaguarpaw/bluefin.git
+  tag: 409f8e37ef4901e9e2846c3b7c42c03823765f4c
+  subdir: bluefin
