@@ -49,6 +49,7 @@ library
     , Color
     , RawSse
     , SnekWebComponent
+    , Html
     , Css
     , Favicon
   data-files: static/snek.css

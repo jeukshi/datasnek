@@ -168,7 +168,17 @@ advanceState gameState mbNewFood sneksDirectionsBefore = withStateSource \source
     pure (newSneksDirections, newGameState)
 
 run
-    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es, e6 :> es, e7 :> es, e8 :> es, e4 :> scopeEs)
+    :: ( e1 :> es
+       , e2 :> es
+       , e3 :> es
+       , e4 :> es
+       , e5 :> es
+       , e6 :> es
+       , e7 :> es
+       , e8 :> es
+       , e9 :> es
+       , e4 :> scopeEs
+       )
     => Random e1
     -> StoreWrite e2
     -> StoreRead e3
@@ -177,9 +187,10 @@ run
     -> BC.Scope scopeEs e5
     -> BroadcastClient Command e6
     -> BroadcastServer StoreUpdate e7
-    -> Sleep e8
+    -> Queue () e8
+    -> Sleep e9
     -> Eff es ()
-run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient broadcastGameStateServer sleep =
+run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient broadcastGameStateServer mainPageQueue sleep =
     foreverWithSleep sleep 200 do
         evalState [] \allTimeBestS -> do
             evalState [] \currentBestS -> do
@@ -213,8 +224,10 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                 putFoodPositions storeWrite newGameState.foodPositions
                 putGameFrame storeWrite frame
                 writeBroadcast broadcastGameStateServer event
-                -- FIXME
+                -- FIXME name the thing
                 runScoreboardManager storeRead storeWrite broadcastGameStateServer allTimeBestS currentBestS
+                -- FIXME only if scoreboard updates!
+                _ <- tryWriteQueue mainPageQueue ()
                 getGameFrameTimeMs storeRead
 
 maybeSpawnFood :: (e :> es) => Random e -> Int -> Int -> Int -> Eff es (Maybe (Int, Int))

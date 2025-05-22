@@ -35,6 +35,7 @@ import User
 -- by more than one. This is not enforced by an effect system.
 data Store = UnsafeMkStore
     { gameFrame :: IORef RawEvent
+    , mainPageBS :: IORef BL.ByteString
     , leaderboardHtml :: IORef (Html ())
     , leaderboardFrame :: IORef RawEvent
     , snekDirection :: MVar SneksDirections
@@ -100,6 +101,7 @@ runStore
     -> Eff es r
 runStore io stme action = do
     gameFrame <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
+    mainPageBS <- effIO io do newIORef "" -- Nobody will notice.
     leaderboardFrame <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
     let leaderboardHtml = RenderHtml.leaderboard True [] []
     leaderboardHtmlIoRef <- effIO io do newIORef leaderboardHtml
@@ -120,11 +122,18 @@ runStore io stme action = do
     chatMessages <- effIO io do newIORef []
     disableChat <- effIO io do newIORef True
     anonymousMode <- effIO io do newIORef True
-    settingsHtml <- RenderHtml.settings []
+    settingsHtml <-
+        RenderHtml.settings
+            [ ("Max Food:", "n/a")
+            , ("Max Players:", "n/a")
+            , ("Queue Size:", "n/a")
+            , ("Board Size:", "n/a")
+            ]
     settingsHtmlIoRef <- effIO io do newIORef settingsHtml
     let store =
             UnsafeMkStore
                 { gameFrame = gameFrame
+                , mainPageBS = mainPageBS
                 , leaderboardFrame = leaderboardFrame
                 , leaderboardHtml = leaderboardHtmlIoRef
                 , snekDirection = snekDirection
@@ -156,6 +165,14 @@ getGameFrame (UnsafeMkStoreRead io stme store) =
 putGameFrame :: (e :> es) => StoreWrite e -> RawEvent -> Eff es ()
 putGameFrame (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.gameFrame
+
+getMainPageBS :: (e :> es) => StoreRead e -> Eff es BL.ByteString
+getMainPageBS (UnsafeMkStoreRead io stme store) =
+    effIO io $ readIORef store.mainPageBS
+
+putMainPageBS :: (e :> es) => StoreWrite e -> BL.ByteString -> Eff es ()
+putMainPageBS (UnsafeMkStoreWrite io stme store) =
+    effIO io . writeIORef store.mainPageBS
 
 getLeaderboardFrame :: (e :> es) => StoreRead e -> Eff es RawEvent
 getLeaderboardFrame (UnsafeMkStoreRead io stme store) =

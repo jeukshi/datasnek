@@ -58,6 +58,16 @@ writeQueue
 writeQueue (UnsafeMkQueue stme queue) new =
     BC.atomicallySTM stme do writeTBQueue queue new
 
+tryWriteQueue
+    :: (e :> es) => Queue a e -> a -> Eff es Bool
+tryWriteQueue (UnsafeMkQueue stme queue) new =
+    BC.atomicallySTM stme do
+        isFullTBQueue queue >>= \case
+            False -> do
+                writeTBQueue queue new
+                pure True
+            True -> pure False
+
 isQueueFull
     :: (e :> es) => Queue a e -> Eff es Bool
 isQueueFull (UnsafeMkQueue stme queue) =

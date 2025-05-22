@@ -49,11 +49,13 @@ import Favicon qualified
 import GHC.Generics (Generic)
 import Game qualified
 import GenUuid (GenUuid, nextUuid, runGenUuid)
+import Html
 import JavaScript qualified
 import Lucid (Html, HtmlT, ToHtml (..))
 import Lucid.Base (makeAttributes, renderBS)
 import Lucid.Datastar
 import Lucid.Html5
+import MainPageManager qualified
 import Message
 import Network.Wai.Handler.Warp qualified as Warp
 import Numeric.Natural (Natural)
@@ -195,7 +197,7 @@ instance ToSse RedirectMain where
 data Routes es route = Routes
     { _page
         :: route
-            :- Get '[HTML] (Html ())
+            :- Get '[HtmlRaw] BL.ByteString
     , _loginPage :: route :- "login" :>> Get '[HTML] (Html ())
     , _transmittal
         :: route
@@ -293,15 +295,16 @@ chat broadcast = \cases
         singleToSourceIO MkRemoveComment
 
 settings
-    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es)
+    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es)
     => StoreWrite e1
     -> StoreRead e2
     -> BroadcastServer StoreUpdate e3
     -> Queue (User, Message) e4
+    -> Queue () e5
     -> Maybe User
     -> NewSettings
     -> Eff es (SourceIO EmptyResponse)
-settings storeWrite storeRead broadcast chatQueue = \cases
+settings storeWrite storeRead broadcast chatQueue mainPageQueue = \cases
     -- FIXME auth
     (Just user) newSettings -> do
         putMaxFood storeWrite newSettings.maxFood
@@ -328,6 +331,7 @@ settings storeWrite storeRead broadcast chatQueue = \cases
             writeBroadcast broadcast (ChatInputUpdate disableChatRawEvent)
             -- This is a bit hacky. But we need to get chat manager to render the chat.
             writeQueue chatQueue (MkUser "" "", MkMessage "settings updated")
+        _ <- tryWriteQueue mainPageQueue ()
         singleToSourceIO EmptyResponse
     Nothing _ -> do
         singleToSourceIO EmptyResponse
@@ -406,48 +410,8 @@ hotreload once = only once $ streamToSourceIO \out -> do
     yield out HotReload
     only once $ yield out HotReload
 
-page :: Eff es (Html ())
-page = return do
-    pageHead do
-        main_
-            [ class_ "container"
-            , dataOnLoad_ JavaScript.hotreload
-            , -- , dataSignalsJson_ "\"{isplaying: 'false', showchat: 'false'}\""
-              dataSignals_ "username" ""
-            , dataSignals_ "isplaying" "false"
-            , dataSignals_ "showchat" "false"
-            ]
-            do
-                div_
-                    [ class_ "game-container"
-                    , dataOnLoad_ JavaScript.getTransmittal
-                    , dataOnKeydown__window_ JavaScript.gameInput
-                    ]
-                    do
-                        div_ [class_ "header"] do
-                            h1_ "Datasnek"
-                            button_ [class_ "play-button", dataOnMousedown_ JavaScript.postPlay] "Play"
-                        div_ [id_ "leaderboard", class_ "leaderboard"] do
-                            h3_ "Leaderboard"
-                            p_ "Top players will appear here"
-                        div_ [id_ "board", class_ "board"] mempty
-                        div_ [id_ "chat", class_ "chat"] do
-                            div_ [id_ "chat-messages", class_ "chat-messages"] mempty
-                            div_ [dataSignals_ "comment" ""] mempty
-                            div_ [id_ "chat-input-container", class_ "chat-input-container"] do
-                                input_
-                                    [ type_ "text"
-                                    , dataBind_ "comment"
-                                    , dataOnKeydown_ JavaScript.postInChat
-                                    , class_ "chat-input"
-                                    , name_ "message"
-                                    , placeholder_ "Send a message..."
-                                    , maxlength_ "300"
-                                    , dataShow_ "$showchat"
-                                    ]
-                        div_ [id_ "settings", class_ "settings"] do
-                            h3_ "Settings"
-                            p_ "Game settings controls"
+page :: (e :> es) => StoreRead e -> Eff es BL.ByteString
+page = getMainPageBS
 
 -- FIXME This foe is beyond me.
 -- This code "works", but I can pass any handler to servant,
@@ -466,73 +430,50 @@ run = runEff \io -> do
                         runGenUuid io \genUuidMain -> do
                             runQueue stme 100 \gameQueueMain -> do
                                 runQueue stme 100 \chatQueueMain -> do
-                                    BC.withNonDet io \nonDet -> do
-                                        BC.scoped nonDet \scope -> do
-                                            _ <- BC.fork scope $ \acc -> do
-                                                broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
-                                                broadcastGameStateClient <- accessConcurrently acc broadcastGameStateClientMain
-                                                storeRead <- accessConcurrently acc storeReadMain
-                                                storeWrite <- accessConcurrently acc storeWriteMain
-                                                {- runScoreboardManager
-                                                                                                    storeRead
-                                                                                                    storeWrite
-                                                                                                    broadcastGameStateClient
-                                                                                                    broadcastGameStateServer
-                                                -}
-                                                pure ()
-                                            _ <- BC.fork scope $ \acc -> do
-                                                random <- accessConcurrently acc randomMain
-                                                broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
-                                                broadcastCommandClient <- accessConcurrently acc broadcastCommandClientMain
-                                                storeRead <- accessConcurrently acc storeReadMain
-                                                storeWrite <- accessConcurrently acc storeWriteMain
-                                                chatQueue <- accessConcurrently acc chatQueueMain
-                                                ChatManager.run storeWrite storeRead chatQueue broadcastGameStateServer
+                                    runQueue stme 2 \mainPageQueueMain -> do
+                                        BC.withNonDet io \nonDet -> do
+                                            BC.scoped nonDet \scope -> do
+                                                _ <- BC.fork scope $ \acc -> do
+                                                    broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
+                                                    broadcastGameStateClient <- accessConcurrently acc broadcastGameStateClientMain
+                                                    storeRead <- accessConcurrently acc storeReadMain
+                                                    storeWrite <- accessConcurrently acc storeWriteMain
+                                                    storeWrite <- accessConcurrently acc storeWriteMain
+                                                    mainPageQueue <- accessConcurrently acc mainPageQueueMain
+                                                    MainPageManager.run storeWrite storeRead mainPageQueue
+                                                    pure ()
+                                                _ <- BC.fork scope $ \acc -> do
+                                                    random <- accessConcurrently acc randomMain
+                                                    broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
+                                                    broadcastCommandClient <- accessConcurrently acc broadcastCommandClientMain
+                                                    storeRead <- accessConcurrently acc storeReadMain
+                                                    storeWrite <- accessConcurrently acc storeWriteMain
+                                                    chatQueue <- accessConcurrently acc chatQueueMain
+                                                    mainPageQueue <- accessConcurrently acc mainPageQueueMain
+                                                    ChatManager.run storeWrite storeRead chatQueue broadcastGameStateServer mainPageQueue
 
-                                            _ <- BC.fork scope $ \acc -> do
-                                                random <- accessConcurrently acc randomMain
-                                                broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
-                                                broadcastCommandClient <- accessConcurrently acc broadcastCommandClientMain
-                                                storeRead <- accessConcurrently acc storeReadMain
-                                                storeWrite <- accessConcurrently acc storeWriteMain
-                                                gameQueue <- accessConcurrently acc gameQueueMain
-                                                localIO <- accessConcurrently acc io
-                                                runSleep localIO \sleep -> do
-                                                    QueueManager.run storeWrite storeRead gameQueue broadcastGameStateServer sleep
+                                                _ <- BC.fork scope $ \acc -> do
+                                                    random <- accessConcurrently acc randomMain
+                                                    broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
+                                                    broadcastCommandClient <- accessConcurrently acc broadcastCommandClientMain
+                                                    storeRead <- accessConcurrently acc storeReadMain
+                                                    storeWrite <- accessConcurrently acc storeWriteMain
+                                                    gameQueue <- accessConcurrently acc gameQueueMain
+                                                    localIO <- accessConcurrently acc io
+                                                    runSleep localIO \sleep -> do
+                                                        QueueManager.run storeWrite storeRead gameQueue broadcastGameStateServer sleep
 
-                                            _ <- BC.fork scope $ \acc -> do
-                                                random <- accessConcurrently acc randomMain
-                                                broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
-                                                broadcastCommandClient <- accessConcurrently acc broadcastCommandClientMain
-                                                storeRead <- accessConcurrently acc storeReadMain
-                                                storeWrite <- accessConcurrently acc storeWriteMain
-                                                gameQueue <- accessConcurrently acc gameQueueMain
-                                                chatQueue <- accessConcurrently acc chatQueueMain
-                                                localScope <- accessConcurrently acc scope
-                                                growScope localScope \newScope -> do
-                                                    CommandManager.run
-                                                        random
-                                                        storeWrite
-                                                        storeRead
-                                                        gameQueue
-                                                        chatQueue
-                                                        newScope
-                                                        broadcastCommandClient
-                                                        broadcastGameStateServer
-
-                                            _ <- BC.fork scope $ \acc -> do
-                                                random <- accessConcurrently acc randomMain
-                                                broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
-                                                broadcastCommandClient <- accessConcurrently acc broadcastCommandClientMain
-                                                storeRead <- accessConcurrently acc storeReadMain
-                                                storeWrite <- accessConcurrently acc storeWriteMain
-                                                gameQueue <- accessConcurrently acc gameQueueMain
-                                                chatQueue <- accessConcurrently acc chatQueueMain
-                                                localScope <- accessConcurrently acc scope
-                                                localIO <- accessConcurrently acc io
-                                                runSleep localIO \sleep -> do
+                                                _ <- BC.fork scope $ \acc -> do
+                                                    random <- accessConcurrently acc randomMain
+                                                    broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
+                                                    broadcastCommandClient <- accessConcurrently acc broadcastCommandClientMain
+                                                    storeRead <- accessConcurrently acc storeReadMain
+                                                    storeWrite <- accessConcurrently acc storeWriteMain
+                                                    gameQueue <- accessConcurrently acc gameQueueMain
+                                                    chatQueue <- accessConcurrently acc chatQueueMain
+                                                    localScope <- accessConcurrently acc scope
                                                     growScope localScope \newScope -> do
-                                                        Game.run
+                                                        CommandManager.run
                                                             random
                                                             storeWrite
                                                             storeRead
@@ -541,37 +482,68 @@ run = runEff \io -> do
                                                             newScope
                                                             broadcastCommandClient
                                                             broadcastGameStateServer
-                                                            sleep
 
-                                            warpThread <- BC.fork scope $ \acc -> do
-                                                ioLocal <- accessConcurrently acc io
-                                                broadcastGameStateClient <- accessConcurrently acc broadcastGameStateClientMain
-                                                broadcastCommandServer <- accessConcurrently acc broadcastCommandServerMain
-                                                chatQueue <- accessConcurrently acc chatQueueMain
-                                                genUuid <- accessConcurrently acc genUuidMain
-                                                storeRead <- accessConcurrently acc storeReadMain
-                                                storeWrite <- accessConcurrently acc storeWriteMain
-                                                broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
-                                                runOnce ioLocal \once -> do
-                                                    effEnvProxy <- captureEffEnv
-                                                    let record =
-                                                            Routes
-                                                                { _page = page
-                                                                , _loginPage = loginPage
-                                                                , _transmittal = transmittal broadcastGameStateClient
-                                                                , _hotreload = hotreload once
-                                                                , _play = play broadcastCommandServer
-                                                                , _chat = chat broadcastCommandServer
-                                                                , _changeDirection = changeDirection broadcastCommandServer
-                                                                , _login = login genUuid
-                                                                , _css = pure Css.file
-                                                                , _favicon = pure Favicon.file
-                                                                , _snekcomponent = pure SnekWebComponent.file
-                                                                , _settings = settings storeWrite storeRead broadcastGameStateServer chatQueue
-                                                                }
-                                                    let app :: Application = genericServeT (nt ioLocal effEnvProxy) record
-                                                    effIO ioLocal do Warp.run 3000 app
-                                            BC.awaitEff warpThread
+                                                _ <- BC.fork scope $ \acc -> do
+                                                    random <- accessConcurrently acc randomMain
+                                                    broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
+                                                    broadcastCommandClient <- accessConcurrently acc broadcastCommandClientMain
+                                                    storeRead <- accessConcurrently acc storeReadMain
+                                                    storeWrite <- accessConcurrently acc storeWriteMain
+                                                    gameQueue <- accessConcurrently acc gameQueueMain
+                                                    chatQueue <- accessConcurrently acc chatQueueMain
+                                                    localScope <- accessConcurrently acc scope
+                                                    mainPageQueue <- accessConcurrently acc mainPageQueueMain
+                                                    localIO <- accessConcurrently acc io
+                                                    runSleep localIO \sleep -> do
+                                                        growScope localScope \newScope -> do
+                                                            Game.run
+                                                                random
+                                                                storeWrite
+                                                                storeRead
+                                                                gameQueue
+                                                                chatQueue
+                                                                newScope
+                                                                broadcastCommandClient
+                                                                broadcastGameStateServer
+                                                                mainPageQueue
+                                                                sleep
+
+                                                warpThread <- BC.fork scope $ \acc -> do
+                                                    ioLocal <- accessConcurrently acc io
+                                                    broadcastGameStateClient <- accessConcurrently acc broadcastGameStateClientMain
+                                                    broadcastCommandServer <- accessConcurrently acc broadcastCommandServerMain
+                                                    chatQueue <- accessConcurrently acc chatQueueMain
+                                                    genUuid <- accessConcurrently acc genUuidMain
+                                                    storeRead <- accessConcurrently acc storeReadMain
+                                                    storeWrite <- accessConcurrently acc storeWriteMain
+                                                    broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
+                                                    mainPageQueue <- accessConcurrently acc mainPageQueueMain
+                                                    runOnce ioLocal \once -> do
+                                                        effEnvProxy <- captureEffEnv
+                                                        let record =
+                                                                Routes
+                                                                    { _page = page storeRead
+                                                                    , _loginPage = loginPage
+                                                                    , _transmittal = transmittal broadcastGameStateClient
+                                                                    , _hotreload = hotreload once
+                                                                    , _play = play broadcastCommandServer
+                                                                    , _chat = chat broadcastCommandServer
+                                                                    , _changeDirection = changeDirection broadcastCommandServer
+                                                                    , _login = login genUuid
+                                                                    , _css = pure Css.file
+                                                                    , _favicon = pure Favicon.file
+                                                                    , _snekcomponent = pure SnekWebComponent.file
+                                                                    , _settings =
+                                                                        settings
+                                                                            storeWrite
+                                                                            storeRead
+                                                                            broadcastGameStateServer
+                                                                            chatQueue
+                                                                            mainPageQueue
+                                                                    }
+                                                        let app :: Application = genericServeT (nt ioLocal effEnvProxy) record
+                                                        effIO ioLocal do Warp.run 3000 app
+                                                BC.awaitEff warpThread
 
 pageHead :: (Monad m) => HtmlT m a -> HtmlT m a
 pageHead main = doctypehtml_ do

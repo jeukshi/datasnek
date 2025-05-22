@@ -22,13 +22,14 @@ import StoreUpdate
 import User
 
 run
-    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es)
+    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es)
     => StoreWrite e1
     -> StoreRead e2
     -> Queue (User, Message) e3
     -> BroadcastServer StoreUpdate e4
+    -> Queue () e5
     -> Eff es ()
-run storeWrite storeRead queue broadcastServer = forever do
+run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
     newMessage <- readQueue queue
     oldMessages <- getChatMessages storeRead
     getDisableChat storeRead >>= \case
@@ -41,6 +42,7 @@ run storeWrite storeRead queue broadcastServer = forever do
             putChatMessages storeWrite newMessages
             putChatContentHtml storeWrite chatHtml
             putChatContent storeWrite rawEvent
+            _ <- tryWriteQueue mainPageQueue ()
             writeBroadcast broadcastServer (ChatNewMessage rawMessageEvent)
         True -> do
             chatHtml <- RenderHtml.chatMessages []
@@ -48,6 +50,7 @@ run storeWrite storeRead queue broadcastServer = forever do
             putChatContent storeWrite rawEvent
             putChatContentHtml storeWrite chatHtml
             putChatMessages storeWrite []
+            _ <- tryWriteQueue mainPageQueue ()
             writeBroadcast broadcastServer (ChatFrameUpdate rawEvent)
 
 renderChatToRawEvent :: Html () -> RawEvent
