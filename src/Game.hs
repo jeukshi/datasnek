@@ -42,6 +42,7 @@ import Message
 import Queue
 import Random
 import RawSse (RawEvent (..))
+import RenderHtml qualified
 import Servant (FromHttpApiData (..))
 import Sleep
 import Snek
@@ -414,40 +415,17 @@ runScoreboardManager storeRead storeWrite broadcastServer allTimeBestS currentBe
     put currentBestS newCurrentBest
     when (isJust mbNewAllTimeBest || isJust mbCurrentBestS) do
         anonymousMode <- getAnonymousMode storeRead
+        let leaderboardHtml = RenderHtml.leaderboard anonymousMode newCurrentBest newAllTimeBest
         let leaderboardEvent =
-                renderLeaderboardToRawEvent anonymousMode newCurrentBest newAllTimeBest
+                leaderboardToRawEvent leaderboardHtml
         putLeaderboardFrame storeWrite leaderboardEvent
+        putLeaderboardHtml storeWrite leaderboardHtml
         writeBroadcast broadcastServer (LeaderboardFrameUpdate leaderboardEvent)
 
-renderScoreboardEntry :: Bool -> Int -> Snek -> Html ()
-renderScoreboardEntry anonymousMode position snek =
-    div_ [class_ "leaderboard-entry"] do
-        div_ [class_ "leaderboard-rank"] do
-            div_ [class_ "leaderboard-position"] do toHtml (show position <> ".")
-            div_ [class_ "leaderboard-score"] do toHtml (show $ snekLength snek)
-        div_
-            [class_ "leaderboard-player", style_ $ "color: " <> assignColor (userIdToText snek.user.userId)]
-            $ if anonymousMode then "snek" else toHtml snek.user.name
-
-renderLeaderboardToRawEvent :: Bool -> Sneks -> Sneks -> RawEvent
-renderLeaderboardToRawEvent anonymousMode currentBest allTimeBest =
+leaderboardToRawEvent :: Html () -> RawEvent
+leaderboardToRawEvent html =
     MkRawEvent $
         "event:datastar-merge-fragments\n"
             <> "data:fragments "
-            <> renderLeaderboard anonymousMode currentBest allTimeBest
+            <> renderBS html
             <> "\n"
-
-renderLeaderboard :: Bool -> Sneks -> Sneks -> BL.ByteString
-renderLeaderboard anonymousMode currentSneks allTimeSneks = renderBS do
-    div_ [id_ "leaderboard", class_ "leaderboard"] $ do
-        -- renderScoreboard "All-Time Top 5" allTimeBoard
-        div_ [class_ "leaderboard-section"] do
-            h3_ [] $ toHtml ("All-Time Top 5" :: Text)
-            div_ [class_ "leaderboard-entries"] $
-                mconcat $
-                    zipWith (renderScoreboardEntry anonymousMode) [1 ..] allTimeSneks
-            hr_ []
-        div_ [class_ "leaderboard-section"] do
-            div_ [class_ "leaderboard-entries"] $
-                mconcat $
-                    zipWith (renderScoreboardEntry anonymousMode) [1 ..] currentSneks

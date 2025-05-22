@@ -35,6 +35,7 @@ import User
 -- by more than one. This is not enforced by an effect system.
 data Store = UnsafeMkStore
     { gameFrame :: IORef RawEvent
+    , leaderboardHtml :: IORef (Html ())
     , leaderboardFrame :: IORef RawEvent
     , snekDirection :: MVar SneksDirections
     , sneks :: IORef Sneks
@@ -100,6 +101,8 @@ runStore
 runStore io stme action = do
     gameFrame <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
     leaderboardFrame <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
+    let leaderboardHtml = RenderHtml.leaderboard True [] []
+    leaderboardHtmlIoRef <- effIO io do newIORef leaderboardHtml
     snekDirection <- effIO io do newMVar Map.empty
     sneks <- effIO io do newIORef []
     maxFood <- effIO io do newIORef 5
@@ -117,12 +120,13 @@ runStore io stme action = do
     chatMessages <- effIO io do newIORef []
     disableChat <- effIO io do newIORef True
     anonymousMode <- effIO io do newIORef True
-    settingsHtml' <- RenderHtml.settings []
-    settingsHtml <- effIO io do newIORef settingsHtml'
+    settingsHtml <- RenderHtml.settings []
+    settingsHtmlIoRef <- effIO io do newIORef settingsHtml
     let store =
             UnsafeMkStore
                 { gameFrame = gameFrame
                 , leaderboardFrame = leaderboardFrame
+                , leaderboardHtml = leaderboardHtmlIoRef
                 , snekDirection = snekDirection
                 , sneks = sneks
                 , maxFood = maxFood
@@ -139,7 +143,7 @@ runStore io stme action = do
                 , chatMessages = chatMessages
                 , disableChat = disableChat
                 , anonymousMode = anonymousMode
-                , settingsHtml = settingsHtml
+                , settingsHtml = settingsHtmlIoRef
                 }
     let storeWrite = UnsafeMkStoreWrite (mapHandle io) (mapHandle stme) store
     let storeRead = UnsafeMkStoreRead (mapHandle io) (mapHandle stme) store
@@ -160,6 +164,14 @@ getLeaderboardFrame (UnsafeMkStoreRead io stme store) =
 putLeaderboardFrame :: (e :> es) => StoreWrite e -> RawEvent -> Eff es ()
 putLeaderboardFrame (UnsafeMkStoreWrite io stme store) = do
     effIO io . writeIORef store.leaderboardFrame
+
+getLeaderboardHtml :: (e :> es) => StoreRead e -> Eff es (Html ())
+getLeaderboardHtml (UnsafeMkStoreRead io stme store) =
+    effIO io $ readIORef store.leaderboardHtml
+
+putLeaderboardHtml :: (e :> es) => StoreWrite e -> Html () -> Eff es ()
+putLeaderboardHtml (UnsafeMkStoreWrite io stme store) = do
+    effIO io . writeIORef store.leaderboardHtml
 
 atomicModifySnekDirection
     :: (e :> es)

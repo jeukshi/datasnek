@@ -37,6 +37,7 @@ page :: (e :> es) => StoreRead e -> Eff es (Html ())
 page storeRead = do
     chatMessages <- getChatContentHtml storeRead
     disableChat <- getDisableChat storeRead
+    leaderboard <- getLeaderboardHtml storeRead
     settings <- getSettingsHtml storeRead
     pure do
         pageHead do
@@ -57,9 +58,7 @@ page storeRead = do
                             div_ [class_ "header"] do
                                 h1_ "Datasnek"
                                 button_ [class_ "play-button", dataOnMousedown_ JavaScript.postPlay] "Play"
-                            div_ [id_ "leaderboard", class_ "leaderboard"] do
-                                h3_ "Leaderboard"
-                                p_ "Top players will appear here"
+                            leaderboard
                             div_ [id_ "board", class_ "board"] mempty
                             div_ [id_ "chat", class_ "chat"] do
                                 chatMessages
