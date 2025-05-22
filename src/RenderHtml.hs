@@ -17,7 +17,7 @@ chatMessages userMessages = return do
         for_ userMessages \userMessage -> do
             renderMessage userMessage
 
-renderMessage :: (User, Message) -> HtmlT Identity ()
+renderMessage :: (User, Message) -> Html ()
 renderMessage (user, message) = do
     let userColor = assignColor (userIdToText user.userId)
     div_ [class_ "chat-message"] do
