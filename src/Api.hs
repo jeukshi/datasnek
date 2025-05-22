@@ -314,7 +314,6 @@ settings storeWrite storeRead broadcast chatQueue mainPageQueue = \cases
         putQueueMaxSize storeWrite newSettings.queueMaxSize
         putRenderWebComponent storeWrite newSettings.useWebComponent
         putAnonymousMode storeWrite newSettings.anonymousMode
-        putDisableChat storeWrite newSettings.disableChat
         settingsHtml <-
             RenderHtml.settings
                 [ ("Max Food:", T.pack . show $ newSettings.maxFood)
@@ -328,6 +327,7 @@ settings storeWrite storeRead broadcast chatQueue mainPageQueue = \cases
         oldDisableChat <- getDisableChat storeRead
         when (oldDisableChat /= newSettings.disableChat) do
             let disableChatRawEvent = disableChatToRawEvent newSettings.disableChat
+            putDisableChat storeWrite newSettings.disableChat
             writeBroadcast broadcast (ChatInputUpdate disableChatRawEvent)
             -- This is a bit hacky. But we need to get chat manager to render the chat.
             writeQueue chatQueue (MkUser "" "", MkMessage "settings updated")
@@ -424,7 +424,7 @@ run = runEff \io -> do
     -- Bluefin pyramid of doom.
     BC.runSTM io \stme -> do
         runStore io stme \storeReadMain storeWriteMain -> do
-            runBroadcastStore io storeReadMain \broadcastGameStateClientMain broadcastGameStateServerMain -> do
+            runBroadcast io storeReadMain \broadcastGameStateClientMain broadcastGameStateServerMain -> do
                 runBroadcast io storeReadMain \broadcastCommandClientMain broadcastCommandServerMain -> do
                     runRandom io \randomMain -> do
                         runGenUuid io \genUuidMain -> do

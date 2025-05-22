@@ -30,7 +30,6 @@ data BroadcastClient a e = UnsafeMkBroadcastClient
     { ioe :: IOE e
     , inChan :: InChan a
     , store :: StoreRead e
-    , beforeRead :: forall e'. StoreRead e' -> Eff (e' :& e) [a]
     }
 
 instance Handle (BroadcastClient a) where
@@ -39,18 +38,15 @@ instance Handle (BroadcastClient a) where
             { ioe = mapHandle c.ioe
             , inChan = c.inChan
             , store = mapHandle c.store
-            , beforeRead = useImplUnder . beforeRead c
             }
 
 instance ThreadSafe (BroadcastClient a) where
-    accessConcurrently access bc@(UnsafeMkBroadcastClient io inChan store before) = do
+    accessConcurrently access bc@(UnsafeMkBroadcastClient io inChan store) = do
         localIo <- accessConcurrently access io
         localStore <- accessConcurrently access store
         pure
             UnsafeMkBroadcastClient
-                { -- FIXME I don't know how to write it.
-                  beforeRead = makeOp . beforeRead (unsafeCoerce bc) . mapHandle
-                , ioe = localIo
+                { ioe = localIo
                 , store = localStore
                 , inChan = inChan
                 }
@@ -75,42 +71,8 @@ runBroadcast
 runBroadcast io store action = do
     (iChan, _) <- effIO io newChan
     let broadcastOut = UnsafeMkBroadcastServer (mapHandle io) iChan
-    let broadcast = UnsafeMkBroadcastClient (mapHandle io) iChan (mapHandle store) (\_ -> pure [])
+    let broadcast = UnsafeMkBroadcastClient (mapHandle io) iChan (mapHandle store)
     useImplIn2 action broadcast broadcastOut
-
-runBroadcastStore
-    :: (e1 :> es, e2 :> es)
-    => IOE e1
-    -> StoreRead e2
-    -> (forall e. BroadcastClient StoreUpdate e -> BroadcastServer StoreUpdate e -> Eff (e :& es) r)
-    -> Eff es r
-runBroadcastStore io store action = do
-    (iChan, _) <- effIO io newChan
-    let broadcastOut = UnsafeMkBroadcastServer (mapHandle io) iChan
-    let broadcast = UnsafeMkBroadcastClient (mapHandle io) iChan (mapHandle store) readStore
-    useImplIn2 action broadcast broadcastOut
-  where
-    readStore :: (e' :> es') => StoreRead e' -> Eff es' [StoreUpdate]
-    readStore store' = do
-        -- TODO I don't like having this logic here.
-        -- We don't do game frame here, but it will come fast enough.
-        -- Also we do it, cuz we can keep our main page in cache and constant.
-        -- But it seems less and less worth the truble.
-        leaderboardFrame <- getLeaderboardFrame store'
-        chatFrame <- getChatContent store'
-        disableChat <- getDisableChat store'
-        let chatInputRawEvent = renderChatInput disableChat
-        pure
-            [ LeaderboardFrameUpdate leaderboardFrame
-            , ChatFrameUpdate chatFrame
-            , ChatInputUpdate chatInputRawEvent
-            ]
-    renderChatInput disabled =
-        MkRawEvent
-            ( "event:datastar-merge-signals\n"
-                <> "data:signals {showchat: "
-                <> if disabled then "false" else "true" <> "}\n"
-            )
 
 writeBroadcast
     :: (e :> es)
@@ -125,11 +87,8 @@ likeAndSubscribe
     => BroadcastClient a e
     -> Stream a e1
     -> Eff es ()
-likeAndSubscribe bc@(UnsafeMkBroadcastClient io inChan store readInitial) s = do
+likeAndSubscribe bc@(UnsafeMkBroadcastClient io inChan store) s = do
     outChan <- effIO io do dupChan inChan
-    initialEvents <- makeOp (beforeRead (mapHandle bc) (mapHandle store))
-    for_ initialEvents \event -> do
-        yield s event
     forever do
         event <- effIO io do readChan outChan
         yield s event
