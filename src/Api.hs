@@ -322,15 +322,17 @@ settings storeWrite storeRead broadcast chatQueue = \cases
         putSettingsHtml storeWrite settingsHtml
         settingsFrame <- settingsToRawEvent settingsHtml
         writeBroadcast broadcast (SettingsFrameUpdate settingsFrame)
-        let chatInputRawEvent = renderChatInput newSettings.disableChat
-        writeBroadcast broadcast (ChatInputUpdate chatInputRawEvent)
-        -- This is a bit hacky. But we need to get chat manager to render the chat.
-        writeQueue chatQueue (MkUser "" "", MkMessage "settings updated")
+        oldDisableChat <- getDisableChat storeRead
+        when (oldDisableChat /= newSettings.disableChat) do
+            let disableChatRawEvent = disableChatToRawEvent newSettings.disableChat
+            writeBroadcast broadcast (ChatInputUpdate disableChatRawEvent)
+            -- This is a bit hacky. But we need to get chat manager to render the chat.
+            writeQueue chatQueue (MkUser "" "", MkMessage "settings updated")
         singleToSourceIO EmptyResponse
     Nothing _ -> do
         singleToSourceIO EmptyResponse
   where
-    renderChatInput disabled =
+    disableChatToRawEvent disabled =
         MkRawEvent
             ( "event:datastar-merge-signals\n"
                 <> "data:signals {showchat: "
