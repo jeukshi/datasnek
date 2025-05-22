@@ -52,6 +52,7 @@ data Store = UnsafeMkStore
     , chatContentHtml :: IORef (Html ())
     , disableChat :: IORef Bool
     , anonymousMode :: IORef Bool
+    , settingsHtml :: IORef (Html ())
     }
 
 data StoreWrite e = UnsafeMkStoreWrite
@@ -116,6 +117,8 @@ runStore io stme action = do
     chatMessages <- effIO io do newIORef []
     disableChat <- effIO io do newIORef True
     anonymousMode <- effIO io do newIORef True
+    settingsHtml' <- RenderHtml.settings []
+    settingsHtml <- effIO io do newIORef settingsHtml'
     let store =
             UnsafeMkStore
                 { gameFrame = gameFrame
@@ -136,6 +139,7 @@ runStore io stme action = do
                 , chatMessages = chatMessages
                 , disableChat = disableChat
                 , anonymousMode = anonymousMode
+                , settingsHtml = settingsHtml
                 }
     let storeWrite = UnsafeMkStoreWrite (mapHandle io) (mapHandle stme) store
     let storeRead = UnsafeMkStoreRead (mapHandle io) (mapHandle stme) store
@@ -287,3 +291,11 @@ getAnonymousMode (UnsafeMkStoreRead io stme store) =
 putAnonymousMode :: (e :> es) => StoreWrite e -> Bool -> Eff es ()
 putAnonymousMode (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.anonymousMode
+
+getSettingsHtml :: (e :> es) => StoreRead e -> Eff es (Html ())
+getSettingsHtml (UnsafeMkStoreRead io stme store) =
+    effIO io $ readIORef store.settingsHtml
+
+putSettingsHtml :: (e :> es) => StoreWrite e -> Html () -> Eff es ()
+putSettingsHtml (UnsafeMkStoreWrite io stme store) =
+    effIO io . writeIORef store.settingsHtml

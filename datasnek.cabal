@@ -43,7 +43,6 @@ library
     , Snek
     , Sleep
     , Store
-    , Settings
     , StoreUpdate
     , User
     , Message

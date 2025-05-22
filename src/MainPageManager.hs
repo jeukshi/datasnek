@@ -37,6 +37,7 @@ page :: (e :> es) => StoreRead e -> Eff es (Html ())
 page storeRead = do
     chatMessages <- getChatContentHtml storeRead
     disableChat <- getDisableChat storeRead
+    settings <- getSettingsHtml storeRead
     pure do
         pageHead do
             main_
@@ -75,6 +76,4 @@ page storeRead = do
                                         , maxlength_ "300"
                                         , dataShow_ "$showchat"
                                         ]
-                            div_ [id_ "settings", class_ "settings"] do
-                                h3_ "Settings"
-                                p_ "Game settings controls"
+                            settings

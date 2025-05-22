@@ -22,7 +22,6 @@ import Control.Concurrent.Chan.Unagi (
 import Control.Monad (forever)
 import Data.Foldable (for_)
 import RawSse
-import Settings (renderSettingsToRawEvent)
 import Store
 import StoreUpdate (StoreUpdate (..))
 import Unsafe.Coerce (unsafeCoerce)
@@ -99,13 +98,11 @@ runBroadcastStore io store action = do
         -- But it seems less and less worth the truble.
         leaderboardFrame <- getLeaderboardFrame store'
         chatFrame <- getChatContent store'
-        settingsFrame <- renderSettingsToRawEvent store'
         disableChat <- getDisableChat store'
         let chatInputRawEvent = renderChatInput disableChat
         pure
             [ LeaderboardFrameUpdate leaderboardFrame
             , ChatFrameUpdate chatFrame
-            , SettingsFrameUpdate settingsFrame
             , ChatInputUpdate chatInputRawEvent
             ]
     renderChatInput disabled =

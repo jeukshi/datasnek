@@ -61,6 +61,7 @@ import Queue
 import QueueManager qualified
 import Random (runRandom)
 import RawSse
+import RenderHtml qualified
 import Servant (
     Application,
     Capture,
@@ -86,7 +87,6 @@ import Servant.API.Stream (SourceToSourceIO (..))
 import Servant.Server.Generic (AsServerT, genericServeT)
 import Servant.Types.SourceT (SourceT)
 import Servant.Types.SourceT qualified as S
-import Settings (renderSettingsToRawEvent)
 import Sleep
 import Snek
 import SnekWebComponent (JS, boardSize_, food_, snekGameBoard_, sneks_)
@@ -312,7 +312,15 @@ settings storeWrite storeRead broadcast chatQueue = \cases
         putRenderWebComponent storeWrite newSettings.useWebComponent
         putAnonymousMode storeWrite newSettings.anonymousMode
         putDisableChat storeWrite newSettings.disableChat
-        settingsFrame <- renderSettingsToRawEvent storeRead
+        settingsHtml <-
+            RenderHtml.settings
+                [ ("Max Food:", T.pack . show $ newSettings.maxFood)
+                , ("Max Players:", T.pack . show $ newSettings.maxPlayers)
+                , ("Queue Size:", T.pack . show $ newSettings.queueMaxSize)
+                , ("Board Size:", T.pack . show $ newSettings.boardSize)
+                ]
+        putSettingsHtml storeWrite settingsHtml
+        settingsFrame <- settingsToRawEvent settingsHtml
         writeBroadcast broadcast (SettingsFrameUpdate settingsFrame)
         let chatInputRawEvent = renderChatInput newSettings.disableChat
         writeBroadcast broadcast (ChatInputUpdate chatInputRawEvent)
@@ -329,6 +337,14 @@ settings storeWrite storeRead broadcast chatQueue = \cases
                 <> (if disabled then "false" else "true")
                 <> "}\n"
             )
+    settingsToRawEvent :: Html () -> Eff es RawEvent
+    settingsToRawEvent html = do
+        pure $
+            MkRawEvent $
+                "event:datastar-merge-fragments\n"
+                    <> "data:fragments "
+                    <> renderBS html
+                    <> "\n"
 
 changeDirection
     :: (e :> es) => BroadcastServer Command e -> Direction -> Maybe User -> Eff es (SourceIO EmptyResponse)
