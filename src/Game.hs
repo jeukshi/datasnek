@@ -191,9 +191,9 @@ run
     -> Sleep e9
     -> Eff es ()
 run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient broadcastGameStateServer mainPageQueue sleep =
-    foreverWithSleep sleep 200 do
-        evalState [] \allTimeBestS -> do
-            evalState [] \currentBestS -> do
+    evalState [] \allTimeBestS -> do
+        evalState [] \currentBestS -> do
+            foreverWithSleep sleep 200 do
                 boardSize <- getBoardSize storeRead
                 foodPositions <- getFoodPositions storeRead
                 maxFood <- getMaxFood storeRead
