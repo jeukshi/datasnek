@@ -380,8 +380,6 @@ transmittal gameStateBroadcast = \case
                 WebComponentUpdate frame sneksDirections -> do
                     yield out $ TransmittalRaw frame
                     playingStateChange out isPlayingS user sneksDirections
-                LeaderboardFrameUpdate frame ->
-                    yield out $ TransmittalRaw frame
                 ChatFrameUpdate frame ->
                     yield out $ TransmittalRaw frame
                 ChatNewMessage message ->

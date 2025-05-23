@@ -218,15 +218,18 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                     _ -> pure ()
                 renderWebComponent <- getRenderWebComponent storeRead
                 anonymousMode <- getAnonymousMode storeRead
+                calculateLeaderboard allTimeBestS currentBestS newGameState.aliveSneks
+                allTimeBest <- get allTimeBestS
+                currentBest <- get currentBestS
+                let leaderboardHtml = RenderHtml.leaderboard anonymousMode currentBest allTimeBest
+                putLeaderboardHtml storeWrite leaderboardHtml
                 let (event, frame) =
-                        render anonymousMode newGameState newSneksDirections renderWebComponent
+                        render leaderboardHtml anonymousMode newGameState newSneksDirections renderWebComponent
+                -- FIXME name the thing
                 putSneks storeWrite newGameState.aliveSneks
                 putFoodPositions storeWrite newGameState.foodPositions
                 putGameFrame storeWrite frame
                 writeBroadcast broadcastGameStateServer event
-                -- FIXME name the thing
-                runScoreboardManager storeRead storeWrite broadcastGameStateServer allTimeBestS currentBestS
-                -- FIXME only if scoreboard updates!
                 _ <- tryWriteQueue mainPageQueue ()
                 getGameFrameTimeMs storeRead
 
@@ -242,11 +245,12 @@ maybeSpawnFood random boardSize currentFood maxFood =
                 then Just <$> randomIn random boardSize boardSize
                 else pure Nothing
 
-render :: Bool -> GameState -> SneksDirections -> Bool -> (StoreUpdate, RawEvent)
-render anonymousMode gameState sneksDirections = \cases
+render :: Html () -> Bool -> GameState -> SneksDirections -> Bool -> (StoreUpdate, RawEvent)
+render leaderboardHtml anonymousMode gameState sneksDirections = \cases
     False -> do
         let gameFrame =
                 renderBoardToRawEvent
+                    leaderboardHtml
                     anonymousMode
                     (MkUser "" "")
                     gameState
@@ -257,6 +261,7 @@ render anonymousMode gameState sneksDirections = \cases
                         ( \snek ->
                             ( snek.user.userId
                             , renderBoardToRawEvent
+                                leaderboardHtml
                                 anonymousMode
                                 snek.user
                                 gameState
@@ -265,42 +270,44 @@ render anonymousMode gameState sneksDirections = \cases
                     $ gameState.aliveSneks
         (GameFrameUpdate userGameFrame gameFrame sneksDirections, gameFrame)
     True -> do
-        let webComponent = renderWebComponentToRawEvent anonymousMode gameState
+        let webComponent = renderWebComponentToRawEvent leaderboardHtml anonymousMode gameState
         (WebComponentUpdate webComponent sneksDirections, webComponent)
 
-renderBoardToRawEvent :: Bool -> User -> GameState -> RawEvent
-renderBoardToRawEvent anonymousMode user gameState =
+renderBoardToRawEvent :: Html () -> Bool -> User -> GameState -> RawEvent
+renderBoardToRawEvent leaderboardHtml anonymousMode user gameState =
     MkRawEvent $
         "event:datastar-merge-fragments\n"
             <> "data:fragments "
-            <> renderBoard anonymousMode user gameState
+            <> renderBoard leaderboardHtml anonymousMode user gameState
             <> "\n"
 
-renderBoard :: Bool -> User -> GameState -> BL.ByteString
-renderBoard anonymousMode renderForUser gameState = renderBS do
-    div_ [id_ "board", class_ "board"] $
-        sequence_
-            [ div_ [class_ "board-container"] do
-                sequence_
-                    [ case Map.lookup (c, r) snakeCells of
-                        (Just (user, color, isHead)) -> div_ [class_ (base <> " snake"), style_ ("background-color:" <> color)] do
-                            let username = if anonymousMode then "snek" else toHtml user.name
-                            if isHead
-                                then
-                                    if renderForUser.userId == user.userId
-                                        then div_ [class_ "nameplate-me"] username
-                                        else div_ [class_ "nameplate"] username
-                                else mempty
-                        Nothing -> do
-                            let cls =
-                                    if (c, r) `elem` gameState.foodPositions
-                                        then base <> " food"
-                                        else base
-                            div_ [class_ cls] mempty
-                    | c <- [0 .. gameState.boardSize]
-                    ]
-            | r <- [0 .. gameState.boardSize]
-            ]
+renderBoard :: Html () -> Bool -> User -> GameState -> BL.ByteString
+renderBoard leaderboardHtml anonymousMode renderForUser gameState = renderBS do
+    div_ [id_ "game-area", class_ "game-area"] do
+        leaderboardHtml
+        div_ [id_ "board", class_ "board"] $
+            sequence_
+                [ div_ [class_ "board-container"] do
+                    sequence_
+                        [ case Map.lookup (c, r) snakeCells of
+                            (Just (user, color, isHead)) -> div_ [class_ (base <> " snake"), style_ ("background-color:" <> color)] do
+                                let username = if anonymousMode then "snek" else toHtml user.name
+                                if isHead
+                                    then
+                                        if renderForUser.userId == user.userId
+                                            then div_ [class_ "nameplate-me"] username
+                                            else div_ [class_ "nameplate"] username
+                                    else mempty
+                            Nothing -> do
+                                let cls =
+                                        if (c, r) `elem` gameState.foodPositions
+                                            then base <> " food"
+                                            else base
+                                div_ [class_ cls] mempty
+                        | c <- [0 .. gameState.boardSize]
+                        ]
+                | r <- [0 .. gameState.boardSize]
+                ]
   where
     snakeCells :: Map (Int, Int) (User, Text, Bool)
     snakeCells =
@@ -346,32 +353,34 @@ randomSnekAndDirection random user maxSize = do
                 }
     pure (snek, snekDir)
 
-renderWebComponentToRawEvent :: Bool -> GameState -> RawEvent
-renderWebComponentToRawEvent anonymousMode gameState =
+renderWebComponentToRawEvent :: Html () -> Bool -> GameState -> RawEvent
+renderWebComponentToRawEvent leaderboardHtml anonymousMode gameState =
     MkRawEvent $
         "event:datastar-merge-fragments\n"
             <> "data:fragments "
-            <> renderWebComponent anonymousMode gameState
+            <> renderWebComponent leaderboardHtml anonymousMode gameState
             <> "\n"
 
 encodeToText :: Aeson.Value -> T.Text
 encodeToText = T.decodeUtf8 . BL.toStrict . Aeson.encode
 
-renderWebComponent :: Bool -> GameState -> BL.ByteString
-renderWebComponent anonymousMode gameState = renderBS $ do
+renderWebComponent :: Html () -> Bool -> GameState -> BL.ByteString
+renderWebComponent leaderboardHtml anonymousMode gameState = renderBS $ do
     let foodJson = encodeToText . Aeson.toJSON . Set.toList $ gameState.foodPositions
     let snakesJson = encodeToText . Aeson.toJSON $ map snekToObject gameState.aliveSneks
     let boardSizeTxt = toText gameState.boardSize
-    div_ [id_ "board", class_ "board"] do
-        snekGameBoard_
-            [ id_ "snek-game-board"
-            , boardSize_ boardSizeTxt
-            , food_ foodJson
-            , sneks_ snakesJson
-            , dataAttr_ "username" "$username"
-            , anonymous_ anonymousMode
-            ]
-            mempty
+    div_ [id_ "game-area", class_ "game-area"] do
+        leaderboardHtml
+        div_ [id_ "board", class_ "board"] do
+            snekGameBoard_
+                [ id_ "snek-game-board"
+                , boardSize_ boardSizeTxt
+                , food_ foodJson
+                , sneks_ snakesJson
+                , dataAttr_ "username" "$username"
+                , anonymous_ anonymousMode
+                ]
+                mempty
 
 toText :: (Show a) => a -> Text
 toText = T.pack . show
@@ -407,16 +416,13 @@ updateScoreboard maxEntries currentSneks newSneks = do
 snekLength :: Snek -> Int
 snekLength snek = 1 + length snek.restOfSnek -- +1 for head.
 
-runScoreboardManager
-    :: (e1 :> es, e2 :> es, e4 :> es, e5 :> es, e6 :> es)
-    => StoreRead e1
-    -> StoreWrite e2
-    -> BroadcastServer StoreUpdate e4
-    -> State [Snek] e5
-    -> State [Snek] e6
+calculateLeaderboard
+    :: (e1 :> es, e2 :> es)
+    => State [Snek] e1
+    -> State [Snek] e2
+    -> Sneks
     -> Eff es ()
-runScoreboardManager storeRead storeWrite broadcastServer allTimeBestS currentBestS = do
-    sneks <- getSneks storeRead
+calculateLeaderboard allTimeBestS currentBestS sneks = do
     allTimeBest <- get allTimeBestS
     currentBest <- get currentBestS
     let currentBestAlive = filter (`elem` sneks) currentBest
@@ -426,14 +432,6 @@ runScoreboardManager storeRead storeWrite broadcastServer allTimeBestS currentBe
     let newCurrentBest = fromMaybe currentBestAlive mbCurrentBestS
     put allTimeBestS newAllTimeBest
     put currentBestS newCurrentBest
-    when (isJust mbNewAllTimeBest || isJust mbCurrentBestS) do
-        anonymousMode <- getAnonymousMode storeRead
-        let leaderboardHtml = RenderHtml.leaderboard anonymousMode newCurrentBest newAllTimeBest
-        let leaderboardEvent =
-                leaderboardToRawEvent leaderboardHtml
-        putLeaderboardFrame storeWrite leaderboardEvent
-        putLeaderboardHtml storeWrite leaderboardHtml
-        writeBroadcast broadcastServer (LeaderboardFrameUpdate leaderboardEvent)
 
 leaderboardToRawEvent :: Html () -> RawEvent
 leaderboardToRawEvent html =
