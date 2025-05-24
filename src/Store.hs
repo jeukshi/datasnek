@@ -55,6 +55,7 @@ data Store = UnsafeMkStore
     , disableChat :: IORef Bool
     , anonymousMode :: IORef Bool
     , settingsHtml :: IORef (Html ())
+    , maxBots :: IORef Int
     }
 
 data StoreWrite e = UnsafeMkStoreWrite
@@ -130,6 +131,7 @@ runStore io stme action = do
             , ("Board Size:", "n/a")
             ]
     settingsHtmlIoRef <- effIO io do newIORef settingsHtml
+    maxBots <- effIO io do newIORef 5
     let store =
             UnsafeMkStore
                 { gameFrame = gameFrame
@@ -153,6 +155,7 @@ runStore io stme action = do
                 , disableChat = disableChat
                 , anonymousMode = anonymousMode
                 , settingsHtml = settingsHtmlIoRef
+                , maxBots = maxBots
                 }
     let storeWrite = UnsafeMkStoreWrite (mapHandle io) (mapHandle stme) store
     let storeRead = UnsafeMkStoreRead (mapHandle io) (mapHandle stme) store
@@ -200,6 +203,10 @@ atomicModifySnekDirection (UnsafeMkStoreWrite io stme store) f = do
     (newSneksDirections, res) <- f sneksDirection
     effIO io $ putMVar store.snekDirection newSneksDirections
     pure (newSneksDirections, res)
+
+tryReadSneksDirections :: (e :> es) => StoreRead e -> Eff es (Maybe SneksDirections)
+tryReadSneksDirections (UnsafeMkStoreRead io stme store) =
+    effIO io $ tryReadMVar store.snekDirection
 
 getSneks :: (e :> es) => StoreRead e -> Eff es Sneks
 getSneks (UnsafeMkStoreRead io stme store) =
@@ -328,3 +335,11 @@ getSettingsHtml (UnsafeMkStoreRead io stme store) =
 putSettingsHtml :: (e :> es) => StoreWrite e -> Html () -> Eff es ()
 putSettingsHtml (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.settingsHtml
+
+getMaxBots :: (e :> es) => StoreRead e -> Eff es Int
+getMaxBots (UnsafeMkStoreRead io stme store) =
+    effIO io $ readIORef store.maxBots
+
+putMaxBots :: (e :> es) => StoreWrite e -> Int -> Eff es ()
+putMaxBots (UnsafeMkStoreWrite io stme store) =
+    effIO io . writeIORef store.maxBots

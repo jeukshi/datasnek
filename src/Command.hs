@@ -7,7 +7,7 @@ import Servant (FromHttpApiData (..))
 import User
 
 data Command
-    = ChangeDirection User Direction
+    = ChangeDirection UserId Direction
     | PlayRequest User
     | NewComment User Message
     deriving (Eq)

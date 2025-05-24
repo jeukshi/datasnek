@@ -59,13 +59,13 @@ run
     -> Eff es ()
 run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient broadcastGameStateServer =
     forEach (likeAndSubscribe broadcastCommandClient) \case
-        ChangeDirection user newDirection -> do
+        ChangeDirection userId newDirection -> do
             snd <$> atomicModifySnekDirection storeWrite \sneks -> do
                 -- TODO allowed directions
                 let newSneks =
                         Map.adjust
                             (\sd -> MkSnekDirection sd.current (Just newDirection))
-                            user.userId
+                            userId
                             sneks
                 pure (newSneks, ())
         PlayRequest user -> do

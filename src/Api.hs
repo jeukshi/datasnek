@@ -19,6 +19,7 @@ import Bluefin.Reader
 import Bluefin.Servant (singleToSourceIO, streamToSourceIO)
 import Bluefin.State
 import Bluefin.Stream (Stream, consumeStream, forEach, yield)
+import BotManager qualified
 import Broadcast
 import ChatManager qualified
 import Color (generateColors)
@@ -126,6 +127,7 @@ data NewSettings = MkNewSettings
     , useWebComponent :: Bool
     , anonymousMode :: Bool
     , disableChat :: Bool
+    , maxBots :: Int
     }
 
 instance FromJSON NewSettings where
@@ -139,6 +141,7 @@ instance FromJSON NewSettings where
             <*> v .: "useWebComponent"
             <*> v .: "anonymousMode"
             <*> v .: "disableChat"
+            <*> v .: "maxBots"
 
 data HotReload = HotReload
     deriving (Show)
@@ -314,6 +317,7 @@ settings storeWrite storeRead broadcast chatQueue mainPageQueue = \cases
         putQueueMaxSize storeWrite newSettings.queueMaxSize
         putRenderWebComponent storeWrite newSettings.useWebComponent
         putAnonymousMode storeWrite newSettings.anonymousMode
+        putMaxBots storeWrite newSettings.maxBots
         settingsHtml <-
             RenderHtml.settings
                 [ ("Max Food:", T.pack . show $ newSettings.maxFood)
@@ -357,7 +361,7 @@ changeDirection
 changeDirection broadcast direction = \case
     Just user -> do
         -- FIXME check if is playing
-        writeBroadcast broadcast (ChangeDirection user direction)
+        writeBroadcast broadcast (ChangeDirection user.userId direction)
         singleToSourceIO EmptyResponse
     Nothing -> do
         singleToSourceIO EmptyResponse
@@ -440,6 +444,7 @@ run = runEff \io -> do
                                                     mainPageQueue <- accessConcurrently acc mainPageQueueMain
                                                     MainPageManager.run storeWrite storeRead mainPageQueue
                                                     pure ()
+
                                                 _ <- BC.fork scope $ \acc -> do
                                                     random <- accessConcurrently acc randomMain
                                                     broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
@@ -449,6 +454,16 @@ run = runEff \io -> do
                                                     chatQueue <- accessConcurrently acc chatQueueMain
                                                     mainPageQueue <- accessConcurrently acc mainPageQueueMain
                                                     ChatManager.run storeWrite storeRead chatQueue broadcastGameStateServer mainPageQueue
+
+                                                _ <- BC.fork scope $ \acc -> do
+                                                    random <- accessConcurrently acc randomMain
+                                                    broadcastGameStateClient <- accessConcurrently acc broadcastGameStateClientMain
+                                                    broadcastCommandServer <- accessConcurrently acc broadcastCommandServerMain
+                                                    storeRead <- accessConcurrently acc storeReadMain
+                                                    storeWrite <- accessConcurrently acc storeWriteMain
+                                                    chatQueue <- accessConcurrently acc chatQueueMain
+                                                    genUuid <- accessConcurrently acc genUuidMain
+                                                    BotManager.run storeRead broadcastGameStateClient broadcastCommandServer random genUuid
 
                                                 _ <- BC.fork scope $ \acc -> do
                                                     random <- accessConcurrently acc randomMain

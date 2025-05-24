@@ -49,6 +49,7 @@ library
     , Color
     , RawSse
     , SnekWebComponent
+    , BotManager
     , Html
     , Css
     , Favicon

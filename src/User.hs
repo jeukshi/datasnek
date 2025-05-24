@@ -7,6 +7,8 @@ import Data.Coerce (coerce)
 import Data.String (IsString)
 import Data.Text (Text)
 import Data.Text.Encoding qualified as T
+import Data.UUID (UUID)
+import Data.UUID qualified as UUID
 import Servant.API (FromHttpApiData (..))
 import Web.Cookie (parseCookiesText)
 
@@ -21,6 +23,9 @@ data User = MkUser
 
 userIdToText :: UserId -> Text
 userIdToText = coerce
+
+userIdFromUuid :: UUID -> UserId
+userIdFromUuid = coerce . UUID.toText
 
 instance FromHttpApiData User where
     parseQueryParam = const $ Left "Not implemented"
