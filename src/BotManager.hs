@@ -17,6 +17,7 @@ import Data.Maybe (catMaybes)
 import Data.Ord
 import Data.Strict.Map qualified as Map
 import Data.Strict.Set (Set)
+import Data.Strict.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Traversable (for)
@@ -124,17 +125,33 @@ decideBotDirection
     -> Eff es Direction
 decideBotDirection random foodPositions boardSize snek currentSnekDir = do
     between01 <- random01 random
-    let possibleMoves = getPossibleMoves snek boardSize currentSnekDir
-    if between01 < 0.03
-        then randomFromList random possibleMoves
-        else makeFoodSeekingMove random foodPositions snek currentSnekDir possibleMoves
+    if between01 < 0.2
+        then randomFromList random (getPossibleMoves snek boardSize currentSnekDir)
+        else
+            makeFoodSeekingMove
+                random
+                foodPositions
+                snek
+                currentSnekDir
+                (getPossibleMoves snek boardSize currentSnekDir)
 
 getPossibleMoves :: Snek -> Int -> Direction -> NonEmpty Direction
-getPossibleMoves snek max currentDir = do
-    let (row, col) = snek.headOfSnek
-    let allMoves = [U, D, L, R]
+getPossibleMoves snek maxDim currentDir = do
+    let (headC, headR) = snek.headOfSnek
+    let allPossibleDirections = [U, D, L, R]
     let oppositeDir = getOppositeDirection currentDir
-    let validMoves = filter (/= oppositeDir) allMoves
+    let nonOppositeMoves = filter (/= oppositeDir) allPossibleDirections
+    let validMoves =
+            filter
+                ( \dir ->
+                    let (newC, newR) = case dir of
+                            U -> (headC, headR - 1)
+                            D -> (headC, headR + 1)
+                            L -> (headC - 1, headR)
+                            R -> (headC + 1, headR)
+                     in newC >= 0 && newC <= maxDim && newR >= 0 && newR <= maxDim
+                )
+                nonOppositeMoves
     if null validMoves
         then currentDir NonEmpty.:| []
         else head validMoves NonEmpty.:| tail validMoves
@@ -154,26 +171,28 @@ makeFoodSeekingMove
     -> NonEmpty Direction
     -> Eff es Direction
 makeFoodSeekingMove random foodPositions snek currentSnekDir possibleMoves = do
-    let closestFood = minimumBy (comparing (manhattanDistance snek.headOfSnek)) foodPositions
-    let movesTowardsFood =
-            NonEmpty.filter (movesBringCloserToFood snek.headOfSnek closestFood) possibleMoves
-    let moves =
+    if null foodPositions
+        then randomFromList random possibleMoves
+        else do
+            let closestFood = minimumBy (comparing (manhattanDistance snek.headOfSnek)) (Set.toList foodPositions)
+            let currentHead = snek.headOfSnek
+            let movesTowardsFood =
+                    NonEmpty.filter (movesBringCloserToFood currentHead closestFood) possibleMoves
             if null movesTowardsFood
-                then currentSnekDir NonEmpty.:| []
-                else head movesTowardsFood NonEmpty.:| tail movesTowardsFood
-    randomFromList random moves
+                then randomFromList random possibleMoves
+                else randomFromList random (head movesTowardsFood NonEmpty.:| tail movesTowardsFood)
 
 manhattanDistance :: (Int, Int) -> (Int, Int) -> Int
 manhattanDistance (x1, y1) (x2, y2) = abs (x1 - x2) + abs (y1 - y2)
 
 movesBringCloserToFood :: (Int, Int) -> (Int, Int) -> Direction -> Bool
-movesBringCloserToFood (row, col) foodPos dir = do
+movesBringCloserToFood (headC, headR) foodPos dir = do
     let newPos = case dir of
-            U -> (row - 1, col)
-            D -> (row + 1, col)
-            L -> (row, col - 1)
-            R -> (row, col + 1)
-    let currentDistance = manhattanDistance (row, col) foodPos
+            U -> (headC, headR - 1)
+            D -> (headC, headR + 1)
+            L -> (headC - 1, headR)
+            R -> (headC + 1, headR)
+    let currentDistance = manhattanDistance (headC, headR) foodPos
     let newDistance = manhattanDistance newPos foodPos
     newDistance < currentDistance
 
