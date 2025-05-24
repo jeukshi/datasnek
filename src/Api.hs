@@ -201,7 +201,7 @@ data Routes es route = Routes
     { _page
         :: route
             :- Get '[HtmlRaw] BL.ByteString
-    , _loginPage :: route :- "login" :>> Get '[HTML] (Html ())
+    , _loginPage :: route :- "login" :>> Get '[HtmlRaw] BL.ByteString
     , _transmittal
         :: route
             :- "api"
@@ -251,14 +251,8 @@ data Routes es route = Routes
     }
     deriving (Generic)
 
-loginPage :: Eff es (Html ())
-loginPage = return do
-    pageHead do
-        main_ [class_ "container"] do
-            div_ [id_ "screen"] do
-                form_ [dataOnSubmit_ JavaScript.login] do
-                    input_ [name_ "username", placeholder_ "Username", required_ ""]
-                    button_ "join"
+loginPage :: (e :> es) => StoreRead e -> Eff es BL.ByteString
+loginPage = getLoginPageBS
 
 login
     :: (e :> es)
@@ -536,7 +530,7 @@ run = runEff \io -> do
                                                         let record =
                                                                 Routes
                                                                     { _page = page storeRead
-                                                                    , _loginPage = loginPage
+                                                                    , _loginPage = loginPage storeRead
                                                                     , _transmittal = transmittal broadcastGameStateClient
                                                                     , _hotreload = hotreload once
                                                                     , _play = play broadcastCommandServer
@@ -557,29 +551,3 @@ run = runEff \io -> do
                                                         let app :: Application = genericServeT (nt ioLocal effEnvProxy) record
                                                         effIO ioLocal do Warp.run 3000 app
                                                 BC.awaitEff warpThread
-
-pageHead :: (Monad m) => HtmlT m a -> HtmlT m a
-pageHead main = doctypehtml_ do
-    head_ do
-        meta_ [charset_ "utf-8"]
-        meta_ [name_ "viewport", content_ "width=device-width, initial-scale=1"]
-        meta_ [name_ "color-scheme", content_ "light dark"]
-        link_ [rel_ "icon", type_ "image/png", href_ "/favicon.ico"]
-        link_ [rel_ "stylesheet", href_ "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"]
-        link_ [rel_ "stylesheet", href_ "snek.css"]
-        link_
-            [ rel_ "stylesheet"
-            , href_
-                "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@40,400,0,0&icon_names=cancel"
-            ]
-        script_
-            [ type_
-                "module"
-            , src_
-                "https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js"
-            ]
-            ("" :: Text)
-        script_ [src_ "snek-game-component.js"] ("" :: Text)
-        title_ "Datasnek"
-    body_ do
-        main

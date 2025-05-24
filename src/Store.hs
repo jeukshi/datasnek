@@ -21,6 +21,7 @@ import Data.Strict.Map (Map)
 import Data.Strict.Map qualified as Map
 import JavaScript qualified
 import Lucid (Html)
+import Lucid.Base (renderBS)
 import Lucid.Datastar (dataBind_, dataOnKeydown_, dataShow_, dataSignals_)
 import Lucid.Html5
 import Message
@@ -37,7 +38,7 @@ data Store = UnsafeMkStore
     { gameFrame :: IORef RawEvent
     , mainPageBS :: IORef BL.ByteString
     , leaderboardHtml :: IORef (Html ())
-    , leaderboardFrame :: IORef RawEvent
+    , loginPageBS :: IORef BL.ByteString
     , snekDirection :: MVar SneksDirections
     , sneks :: IORef Sneks
     , maxFood :: IORef Int
@@ -103,7 +104,8 @@ runStore
 runStore io stme action = do
     gameFrame <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
     mainPageBS <- effIO io do newIORef "" -- Nobody will notice.
-    leaderboardFrame <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
+    loginPageHtml <- RenderHtml.loginPage
+    loginPageBS <- effIO io do newIORef (renderBS loginPageHtml)
     let leaderboardHtml = RenderHtml.leaderboard True [] []
     leaderboardHtmlIoRef <- effIO io do newIORef leaderboardHtml
     snekDirection <- effIO io do newMVar Map.empty
@@ -136,7 +138,7 @@ runStore io stme action = do
             UnsafeMkStore
                 { gameFrame = gameFrame
                 , mainPageBS = mainPageBS
-                , leaderboardFrame = leaderboardFrame
+                , loginPageBS = loginPageBS
                 , leaderboardHtml = leaderboardHtmlIoRef
                 , snekDirection = snekDirection
                 , sneks = sneks
@@ -177,13 +179,9 @@ putMainPageBS :: (e :> es) => StoreWrite e -> BL.ByteString -> Eff es ()
 putMainPageBS (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.mainPageBS
 
-getLeaderboardFrame :: (e :> es) => StoreRead e -> Eff es RawEvent
-getLeaderboardFrame (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.leaderboardFrame
-
-putLeaderboardFrame :: (e :> es) => StoreWrite e -> RawEvent -> Eff es ()
-putLeaderboardFrame (UnsafeMkStoreWrite io stme store) = do
-    effIO io . writeIORef store.leaderboardFrame
+getLoginPageBS :: (e :> es) => StoreRead e -> Eff es BL.ByteString
+getLoginPageBS (UnsafeMkStoreRead io stme store) =
+    effIO io $ readIORef store.loginPageBS
 
 getLeaderboardHtml :: (e :> es) => StoreRead e -> Eff es (Html ())
 getLeaderboardHtml (UnsafeMkStoreRead io stme store) =
