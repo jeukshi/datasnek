@@ -1,3 +1,4 @@
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -25,6 +26,7 @@ import Servant.API (
 import Servant.API.ContentTypes (Accept (..), MimeRender (..))
 
 newtype RawEvent = MkRawEvent BL.ByteString
+    deriving (Show) via BL.ByteString
 
 instance ToSse RawEvent where
     toSse = coerce

@@ -1,10 +1,13 @@
 module QueueManager (run) where
 
 import Bluefin.Eff
+import Bluefin.IO (effIO)
+import Bluefin.Internal qualified
 import Bluefin.State
 import Broadcast
 import Control.Monad (forever, when)
 import Queue
+import RawSse (RawEvent (..))
 import Sleep
 import Store
 import StoreUpdate
@@ -29,13 +32,22 @@ run storeWrite storeRead queue broadcastServer sleep = do
                         Nothing -> pure ()
                         user -> putNewPlayer storeWrite user
             -- TODO resize queue here
-            isQueueFull <- getIsQueueFull storeRead
-            when isQueueFull do
-                queueMaxSize <- getQueueMaxSize storeRead
-                currentSize <- queueLength queue
-                when (currentSize <= queueMaxSize `div` 2) do
-                    putIsQueueFull storeWrite False
-            -- TODO store event
-            -- TODO do better here
-            -- TODO check max size
+            queueMaxSize <- getQueueMaxSize storeRead
+            queueCurrentSize <- queueLength queue
+            getIsQueueFull storeRead >>= \case
+                True -> do
+                    when (queueCurrentSize <= queueMaxSize `div` 2) do
+                        putIsQueueFull storeWrite False
+                        writeBroadcast broadcastServer $ QueueUpdate (queueEvent False)
+                False -> when (queueCurrentSize == queueMaxSize) do
+                    putIsQueueFull storeWrite True
+                    writeBroadcast broadcastServer $ QueueUpdate (queueEvent True)
             sleepMs sleep 50
+  where
+    queueEvent isFull =
+        MkRawEvent
+            ( "event:datastar-merge-signals\n"
+                <> "data:signals {queuefull: '"
+                <> (if isFull then "true" else "false")
+                <> "'}\n"
+            )

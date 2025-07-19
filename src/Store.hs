@@ -113,8 +113,8 @@ runStore io stme action = do
     maxFood <- effIO io do newIORef 5
     foodPositions <- effIO io do newIORef Set.empty
     isQueueFull <- effIO io do newIORef False
-    queueMaxSize <- effIO io do newIORef 100
-    maxPlayers <- effIO io do newIORef 20
+    queueMaxSize <- effIO io do newIORef 5
+    maxPlayers <- effIO io do newIORef 5
     newPlayer <- effIO io do newTVarIO Nothing
     boardSize <- effIO io do newIORef 40
     gameFrameTimeMs <- effIO io do newIORef 200
@@ -133,7 +133,7 @@ runStore io stme action = do
             , ("Board Size:", "n/a")
             ]
     settingsHtmlIoRef <- effIO io do newIORef settingsHtml
-    maxBots <- effIO io do newIORef 5
+    maxBots <- effIO io do newIORef 50
     let store =
             UnsafeMkStore
                 { gameFrame = gameFrame

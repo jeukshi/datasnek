@@ -13,3 +13,4 @@ data StoreUpdate
     | SettingsFrameUpdate RawEvent
     | UsernameUpdate RawEvent
     | ChatInputUpdate RawEvent
+    | QueueUpdate RawEvent

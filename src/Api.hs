@@ -30,7 +30,7 @@ import Control.Concurrent qualified
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar)
 import Control.Concurrent.STM qualified as STM
-import Control.Monad (forever, when)
+import Control.Monad (forever, unless, when)
 import Control.Monad.IO.Class (liftIO)
 import Css (CSS)
 import Css qualified
@@ -273,11 +273,16 @@ login genUuid = \case
         return $ addHeader ("datasnek-id=" <> uuidCookie) (addHeader ("datasnek-name=" <> nameCookie) res)
 
 play
-    :: (e :> es) => BroadcastServer Command e -> Maybe User -> Eff es (SourceIO EmptyResponse)
-play broadcast = \case
+    :: (e1 :> es, e2 :> es)
+    => StoreRead e1
+    -> BroadcastServer Command e2
+    -> Maybe User
+    -> Eff es (SourceIO EmptyResponse)
+play storeRead broadcast = \case
     Just user -> do
-        -- FIXME check if is playing
-        writeBroadcast broadcast (PlayRequest user)
+        isQueueFull <- getIsQueueFull storeRead
+        unless isQueueFull do
+            writeBroadcast broadcast (PlayRequest user)
         singleToSourceIO EmptyResponse
     Nothing -> do
         singleToSourceIO EmptyResponse
@@ -388,6 +393,8 @@ transmittal gameStateBroadcast = \case
                     yield out $ TransmittalRaw frame
                 UsernameUpdate event ->
                     yield out $ TransmittalRaw event
+                QueueUpdate event ->
+                    yield out $ TransmittalRaw event
     Nothing -> singleToSourceIO LoginRedirect
   where
     playingStateChange out isPlayingS user sneksDirections = do
@@ -424,7 +431,7 @@ run = runEff \io -> do
                 runBroadcast io storeReadMain \broadcastCommandClientMain broadcastCommandServerMain -> do
                     runRandom io \randomMain -> do
                         runGenUuid io \genUuidMain -> do
-                            runQueue stme 100 \gameQueueMain -> do
+                            runQueue stme 5 \gameQueueMain -> do
                                 runQueue stme 100 \chatQueueMain -> do
                                     runQueue stme 2 \mainPageQueueMain -> do
                                         BC.withNonDet io \nonDet -> do
@@ -533,7 +540,7 @@ run = runEff \io -> do
                                                                     , _loginPage = loginPage storeRead
                                                                     , _transmittal = transmittal broadcastGameStateClient
                                                                     , _hotreload = hotreload once
-                                                                    , _play = play broadcastCommandServer
+                                                                    , _play = play storeRead broadcastCommandServer
                                                                     , _chat = chat broadcastCommandServer
                                                                     , _changeDirection = changeDirection broadcastCommandServer
                                                                     , _login = login genUuid

@@ -32,6 +32,7 @@ renderPage storeRead = do
     chatMessages <- getChatContentHtml storeRead
     disableChat <- getDisableChat storeRead
     leaderboard <- getLeaderboardHtml storeRead
+    isQueueFull <- getIsQueueFull storeRead
     settings <- getSettingsHtml storeRead
     pure do
         RenderHtml.pageHead do
@@ -41,6 +42,7 @@ renderPage storeRead = do
                 , dataSignals_ "username" ""
                 , dataSignals_ "isplaying" "false"
                 , dataSignals_ "showchat" (if disableChat then "false" else "true")
+                , dataSignals_ "queuefull" (if isQueueFull then "true" else "false")
                 ]
                 do
                     div_
@@ -51,7 +53,14 @@ renderPage storeRead = do
                         do
                             div_ [class_ "header"] do
                                 h1_ "Datasnek"
-                                button_ [class_ "play-button", dataOnMousedown_ JavaScript.postPlay] "Play"
+                                button_
+                                    [ id_ "play-button"
+                                    , class_ "play-button"
+                                    , dataOnMousedown_ JavaScript.postPlay
+                                    , dataShow_ "!$queuefull"
+                                    ]
+                                    "Play"
+                                div_ [id_ "queuefull", dataShow_ "$queuefull"] "queue full"
                             div_ [id_ "game-area", class_ "game-area"] do
                                 leaderboard
                                 div_ [id_ "board", class_ "board"] mempty
