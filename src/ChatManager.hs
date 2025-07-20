@@ -66,7 +66,7 @@ renderMessageToRawEvent messages =
     MkRawEvent $
         "event:datastar-patch-elements\n"
             <> "data: selector #chat-messages\n"
-            <> "data: mergeMode prepend\n"
+            <> "data: mode prepend\n"
             <> "data:elements "
             <> renderBS (RenderHtml.renderMessage messages)
             <> "\n"
