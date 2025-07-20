@@ -229,7 +229,7 @@ data Routes es route = Routes
                 :>> "change-direction"
                 :>> Capture "dir" Direction
                 :>> Header "Cookie" User
-                :>> SseGet (SourceIO EmptyResponse)
+                :>> SsePost (SourceIO EmptyResponse)
     , _settings
         :: -- TODO auth
         route
