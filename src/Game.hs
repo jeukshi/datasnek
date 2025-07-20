@@ -46,11 +46,11 @@ import RenderHtml qualified
 import Servant (FromHttpApiData (..))
 import Sleep
 import Snek
-import SnekWebComponent
 import Store
 import StoreUpdate
 import Unsafe.Coerce (unsafeCoerce)
 import User
+import WebComponents
 
 data GameState = MkGameState
     { boardSize :: Int
@@ -276,8 +276,8 @@ render leaderboardHtml anonymousMode gameState sneksDirections = \cases
 renderBoardToRawEvent :: Html () -> Bool -> User -> GameState -> RawEvent
 renderBoardToRawEvent leaderboardHtml anonymousMode user gameState =
     MkRawEvent $
-        "event:datastar-merge-fragments\n"
-            <> "data:fragments "
+        "event:datastar-patch-elements\n"
+            <> "data:elements "
             <> renderBoard leaderboardHtml anonymousMode user gameState
             <> "\n"
 
@@ -356,8 +356,8 @@ randomSnekAndDirection random user maxSize = do
 renderWebComponentToRawEvent :: Html () -> Bool -> GameState -> RawEvent
 renderWebComponentToRawEvent leaderboardHtml anonymousMode gameState =
     MkRawEvent $
-        "event:datastar-merge-fragments\n"
-            <> "data:fragments "
+        "event:datastar-patch-elements\n"
+            <> "data:elements "
             <> renderWebComponent leaderboardHtml anonymousMode gameState
             <> "\n"
 
@@ -436,7 +436,7 @@ calculateLeaderboard allTimeBestS currentBestS sneks = do
 leaderboardToRawEvent :: Html () -> RawEvent
 leaderboardToRawEvent html =
     MkRawEvent $
-        "event:datastar-merge-fragments\n"
-            <> "data:fragments "
+        "event:datastar-patch-elements\n"
+            <> "data:elements "
             <> renderBS html
             <> "\n"

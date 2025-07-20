@@ -48,7 +48,7 @@ library
     , Message
     , Color
     , RawSse
-    , SnekWebComponent
+    , WebComponents
     , BotManager
     , Html
     , Css

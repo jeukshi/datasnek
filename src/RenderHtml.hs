@@ -11,6 +11,7 @@ import Lucid.Datastar
 import Message
 import Snek
 import User
+import WebComponents (location_, windowController_)
 
 chatMessages :: [(User, Message)] -> Eff es (Html ())
 chatMessages userMessages = return do
@@ -75,6 +76,7 @@ loginPage = return do
                 form_ [dataOnSubmit_ JavaScript.login] do
                     input_ [name_ "username", placeholder_ "Username", required_ ""]
                     button_ "join"
+                    windowController_ [id_ "window-controller"] mempty
 
 pageHead :: (Monad m) => HtmlT m a -> HtmlT m a
 pageHead main = doctypehtml_ do
@@ -85,19 +87,15 @@ pageHead main = doctypehtml_ do
         link_ [rel_ "icon", type_ "image/png", href_ "/favicon.ico"]
         link_ [rel_ "stylesheet", href_ "https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css"]
         link_ [rel_ "stylesheet", href_ "snek.css"]
-        link_
-            [ rel_ "stylesheet"
-            , href_
-                "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@40,400,0,0&icon_names=cancel"
-            ]
         script_
             [ type_
                 "module"
             , src_
-                "https://cdn.jsdelivr.net/gh/starfederation/datastar@v1.0.0-beta.11/bundles/datastar.js"
+                "https://cdn.jsdelivr.net/gh/starfederation/datastar@main/bundles/datastar.js"
             ]
             ("" :: Text)
         script_ [src_ "snek-game-component.js"] ("" :: Text)
+        script_ [src_ "window-controller.js"] ("" :: Text)
         title_ "Datasnek"
     body_ do
         main

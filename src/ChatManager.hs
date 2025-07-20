@@ -56,17 +56,17 @@ run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
 renderChatToRawEvent :: Html () -> RawEvent
 renderChatToRawEvent chatHtml =
     MkRawEvent $
-        "event:datastar-merge-fragments\n"
-            <> "data:fragments "
+        "event:datastar-patch-elements\n"
+            <> "data:elements "
             <> renderBS chatHtml
             <> "\n"
 
 renderMessageToRawEvent :: (User, Message) -> RawEvent
 renderMessageToRawEvent messages =
     MkRawEvent $
-        "event:datastar-merge-fragments\n"
+        "event:datastar-patch-elements\n"
             <> "data: selector #chat-messages\n"
             <> "data: mergeMode prepend\n"
-            <> "data:fragments "
+            <> "data:elements "
             <> renderBS (RenderHtml.renderMessage messages)
             <> "\n"

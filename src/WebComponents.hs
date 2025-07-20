@@ -1,6 +1,6 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module SnekWebComponent where
+module WebComponents where
 
 import Data.ByteString qualified
 import Data.ByteString qualified as BS
@@ -14,8 +14,8 @@ import Network.HTTP.Media qualified as M
 import Servant.API (Accept, MimeRender (..))
 import Servant.API.ContentTypes (Accept (..))
 
-file :: Data.ByteString.ByteString
-file = $(embedFile "static/snek-game-component.js")
+snekGameControllerJS :: Data.ByteString.ByteString
+snekGameControllerJS = $(embedFile "static/snek-game-component.js")
 
 data JS deriving (Typeable)
 
@@ -44,3 +44,15 @@ anonymous_ :: Bool -> Attributes
 anonymous_ = \cases
     True -> makeAttributes "anonymous" "true"
     False -> makeAttributes "anonymous" "false"
+
+windowControllerJS :: Data.ByteString.ByteString
+windowControllerJS = $(embedFile "static/window-controller.js")
+
+windowController_ :: (Monad m) => [Attributes] -> HtmlT m a -> HtmlT m a
+windowController_ = makeElement "window-controller"
+
+location_ :: Text -> Attributes
+location_ = makeAttributes "location"
+
+reload_ :: Attributes
+reload_ = makeAttributes "reload" ""

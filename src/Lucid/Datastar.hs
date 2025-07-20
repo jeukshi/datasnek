@@ -45,3 +45,6 @@ dataOnKeydown_ = makeAttributes "data-on-keydown"
 
 dataAttr_ :: Text -> Text -> Attributes
 dataAttr_ signalName = makeAttributes ("data-attr-" <> signalName)
+
+xxx :: Text -> Attributes
+xxx = makeAttributes "data-on-datastar-fetch"

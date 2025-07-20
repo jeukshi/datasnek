@@ -92,19 +92,19 @@ import Servant.Types.SourceT (SourceT)
 import Servant.Types.SourceT qualified as S
 import Sleep
 import Snek
-import SnekWebComponent (JS, boardSize_, food_, snekGameBoard_, sneks_)
-import SnekWebComponent qualified
 import Store
 import StoreUpdate
 import Unsafe.Coerce (unsafeCoerce)
 import User
 import Web.FormUrlEncoded (FromForm (..), parseUnique)
+import WebComponents (JS, boardSize_, food_, snekGameBoard_, sneks_)
+import WebComponents qualified
 
 type (:>>) = (Servant.:>)
 
 infixr 4 :>>
 
-data EmptyResponse = EmptyResponse
+data EmptyResponse = MkEmptyResponse
 
 instance ToSse EmptyResponse where
     toSse _ = toSse (MkRawEvent "")
@@ -114,7 +114,7 @@ data RemoveComment = MkRemoveComment
 instance ToSse RemoveComment where
     toSse _ = toSse do
         MkRawEvent
-            ( "event:datastar-merge-signals\n"
+            ( "event:datastar-patch-signals\n"
                 <> "data:signals {comment: ''}\n"
             )
 
@@ -149,10 +149,8 @@ data HotReload = HotReload
 instance ToSse HotReload where
     toSse book = toSse do
         MkRawEvent
-            ( "event:datastar-execute-script\n"
-                <> "data:script "
-                <> JavaScript.windowLocationReload
-                <> "\n"
+            ( "event:datastar-patch-elements\n"
+                <> "data:elements <window-controller id=\"window-controller\" reload></window-controller>\n"
             )
 
 data Transmittal
@@ -166,21 +164,19 @@ instance ToSse Transmittal where
         (TransmittalRaw rawEvent) -> toSse rawEvent
         LoginRedirect -> toSse do
             MkRawEvent
-                ( "event:datastar-execute-script\n"
-                    <> "data:script "
-                    <> JavaScript.windowLocationLogin
-                    <> "\n"
+                ( "event:datastar-patch-elements\n"
+                    <> "data:elements <window-controller id=\"window-controller\" location=\"/login\"></window-controller>\n"
                 )
         UpdateUsernameSignal username -> toSse do
             MkRawEvent
-                ( "event:datastar-merge-signals\n"
+                ( "event:datastar-patch-signals\n"
                     <> "data:signals {username: '"
                     <> renderBS (toHtml username)
                     <> "'}\n"
                 )
         UpdateIsPlayingSignal isPlaying -> toSse do
             MkRawEvent
-                ( "event:datastar-merge-signals\n"
+                ( "event:datastar-patch-signals\n"
                     <> "data:signals {isplaying: '"
                     <> (if isPlaying then "true" else "false")
                     <> "'}\n"
@@ -191,10 +187,8 @@ data RedirectMain = MkRedirectMain
 instance ToSse RedirectMain where
     toSse MkRedirectMain = toSse do
         MkRawEvent
-            ( "event:datastar-execute-script\n"
-                <> "data:script "
-                <> JavaScript.windowLocationMain
-                <> "\n"
+            ( "event:datastar-patch-elements\n"
+                <> "data:elements <window-controller id=\"window-controller\" location=\"/\"></window-controller>\n"
             )
 
 data Routes es route = Routes
@@ -246,6 +240,7 @@ data Routes es route = Routes
                 :>> SsePost (SourceIO EmptyResponse)
     , _css :: route :- "snek.css" :>> Get '[CSS] BS.ByteString
     , _snekcomponent :: route :- "snek-game-component.js" :>> Get '[JS] BS.ByteString
+    , _windowController :: route :- "window-controller.js" :>> Get '[JS] BS.ByteString
     , _favicon :: route :- "favicon.ico" :>> Get '[Png] BS.ByteString
     , _hotreload :: route :- "dev" :>> "hotreload" :>> SseGet (SourceIO HotReload)
     }
@@ -283,9 +278,9 @@ play storeRead broadcast = \case
         isQueueFull <- getIsQueueFull storeRead
         unless isQueueFull do
             writeBroadcast broadcast (PlayRequest user)
-        singleToSourceIO EmptyResponse
+        singleToSourceIO MkEmptyResponse
     Nothing -> do
-        singleToSourceIO EmptyResponse
+        singleToSourceIO MkEmptyResponse
 
 chat
     :: (e :> es) => BroadcastServer Command e -> Maybe User -> Message -> Eff es (SourceIO RemoveComment)
@@ -335,13 +330,13 @@ settings storeWrite storeRead broadcast chatQueue mainPageQueue = \cases
             -- This is a bit hacky. But we need to get chat manager to render the chat.
             writeQueue chatQueue (MkUser "" "", MkMessage "settings updated")
         _ <- tryWriteQueue mainPageQueue ()
-        singleToSourceIO EmptyResponse
+        singleToSourceIO MkEmptyResponse
     Nothing _ -> do
-        singleToSourceIO EmptyResponse
+        singleToSourceIO MkEmptyResponse
   where
     disableChatToRawEvent disabled =
         MkRawEvent
-            ( "event:datastar-merge-signals\n"
+            ( "event:datastar-patch-signals\n"
                 <> "data:signals {showchat: "
                 <> (if disabled then "false" else "true")
                 <> "}\n"
@@ -350,8 +345,8 @@ settings storeWrite storeRead broadcast chatQueue mainPageQueue = \cases
     settingsToRawEvent html = do
         pure $
             MkRawEvent $
-                "event:datastar-merge-fragments\n"
-                    <> "data:fragments "
+                "event:datastar-patch-elements\n"
+                    <> "data:elements "
                     <> renderBS html
                     <> "\n"
 
@@ -361,9 +356,9 @@ changeDirection broadcast direction = \case
     Just user -> do
         -- FIXME check if is playing
         writeBroadcast broadcast (ChangeDirection user.userId direction)
-        singleToSourceIO EmptyResponse
+        singleToSourceIO MkEmptyResponse
     Nothing -> do
-        singleToSourceIO EmptyResponse
+        singleToSourceIO MkEmptyResponse
 
 -- Stare at the transmittal. Sing to the snek rattle.
 transmittal
@@ -546,7 +541,8 @@ run = runEff \io -> do
                                                                     , _login = login genUuid
                                                                     , _css = pure Css.file
                                                                     , _favicon = pure Favicon.file
-                                                                    , _snekcomponent = pure SnekWebComponent.file
+                                                                    , _snekcomponent = pure WebComponents.snekGameControllerJS
+                                                                    , _windowController = pure WebComponents.windowControllerJS
                                                                     , _settings =
                                                                         settings
                                                                             storeWrite

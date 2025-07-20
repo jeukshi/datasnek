@@ -9,6 +9,7 @@ import Lucid.Datastar
 import Queue
 import RenderHtml qualified
 import Store
+import WebComponents (windowController_)
 
 run
     :: (e1 :> es, e2 :> es, e3 :> es)
@@ -38,20 +39,19 @@ renderPage storeRead = do
         RenderHtml.pageHead do
             main_
                 [ class_ "container"
-                , dataOnLoad_ JavaScript.hotreload
                 , dataSignals_ "username" ""
                 , dataSignals_ "isplaying" "false"
                 , dataSignals_ "showchat" (if disableChat then "false" else "true")
                 , dataSignals_ "queuefull" (if isQueueFull then "true" else "false")
                 ]
                 do
-                    div_
-                        [ class_ "game-container"
-                        , dataOnLoad_ JavaScript.getTransmittal
-                        , dataOnKeydown__window_ JavaScript.gameInput
-                        ]
-                        do
-                            div_ [class_ "header"] do
+                    div_ [dataOnLoad_ JavaScript.hotreload] mempty
+                    div_ [dataOnLoad_ JavaScript.getTransmittal] mempty
+                    div_ [dataOnKeydown__window_ JavaScript.gameInput] mempty
+                    div_ [class_ "game-container"] do
+                        div_
+                            [class_ "header"]
+                            do
                                 h1_ "Datasnek"
                                 button_
                                     [ id_ "play-button"
@@ -61,21 +61,22 @@ renderPage storeRead = do
                                     ]
                                     "Play"
                                 div_ [id_ "queuefull", dataShow_ "$queuefull"] "queue full"
-                            div_ [id_ "game-area", class_ "game-area"] do
-                                leaderboard
-                                div_ [id_ "board", class_ "board"] mempty
-                            div_ [id_ "chat", class_ "chat"] do
-                                chatMessages
-                                div_ [dataSignals_ "comment" ""] mempty
-                                div_ [id_ "chat-input-container", class_ "chat-input-container"] do
-                                    input_
-                                        [ type_ "text"
-                                        , dataBind_ "comment"
-                                        , dataOnKeydown_ JavaScript.postInChat
-                                        , class_ "chat-input"
-                                        , name_ "message"
-                                        , placeholder_ "Send a message..."
-                                        , maxlength_ "300"
-                                        , dataShow_ "$showchat"
-                                        ]
-                            settings
+                        div_ [id_ "game-area", class_ "game-area"] do
+                            leaderboard
+                            div_ [id_ "board", class_ "board"] mempty
+                        div_ [id_ "chat", class_ "chat"] do
+                            chatMessages
+                            div_ [dataSignals_ "comment" ""] mempty
+                            div_ [id_ "chat-input-container", class_ "chat-input-container"] do
+                                input_
+                                    [ type_ "text"
+                                    , dataBind_ "comment"
+                                    , dataOnKeydown_ JavaScript.postInChat
+                                    , class_ "chat-input"
+                                    , name_ "message"
+                                    , placeholder_ "Send a message..."
+                                    , maxlength_ "300"
+                                    , dataShow_ "$showchat"
+                                    ]
+                        settings
+                    windowController_ [id_ "window-controller"] mempty

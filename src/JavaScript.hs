@@ -25,7 +25,7 @@ postPlay :: Text
 postPlay = "@post('/api/play')"
 
 hotreload :: Text
-hotreload = "@get('dev/hotreload')"
+hotreload = "@get('/dev/hotreload');"
 
 gameInput :: Text
 gameInput =

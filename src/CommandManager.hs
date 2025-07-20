@@ -40,7 +40,6 @@ import Random
 import RawSse (RawEvent (..))
 import Servant (FromHttpApiData (..))
 import Snek
-import SnekWebComponent
 import Store
 import StoreUpdate
 import Unsafe.Coerce (unsafeCoerce)

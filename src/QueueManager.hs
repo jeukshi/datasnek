@@ -46,7 +46,7 @@ run storeWrite storeRead queue broadcastServer sleep = do
   where
     queueEvent isFull =
         MkRawEvent
-            ( "event:datastar-merge-signals\n"
+            ( "event:datastar-patch-signals\n"
                 <> "data:signals {queuefull: '"
                 <> (if isFull then "true" else "false")
                 <> "'}\n"
