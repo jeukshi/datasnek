@@ -14,6 +14,15 @@ useImplIn2
     -> Eff es r
 useImplIn2 f h1 h2 = Bluefin.Internal.inContext (f h1 h2)
 
+useImplIn3
+    :: (e :> es)
+    => (t1 -> t2 -> t3 -> Eff (es :& e) r)
+    -> t1
+    -> t2
+    -> t3
+    -> Eff es r
+useImplIn3 f h1 h2 h3 = Bluefin.Internal.inContext (f h1 h2 h3)
+
 class ThreadSafe a where
     accessConcurrently :: (e' :> es', e :> es) => BC.ExclusiveAccess es' e -> a e' -> Eff es (a e)
 

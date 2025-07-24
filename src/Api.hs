@@ -34,7 +34,8 @@ import Control.Monad (forever, unless, when)
 import Control.Monad.IO.Class (liftIO)
 import Css (CSS)
 import Css qualified
-import Data.Aeson (FromJSON (parseJSON), ToJSON, withObject, (.:))
+import Data.Aeson (FromJSON (parseJSON), KeyValue ((.=)), ToJSON, withObject, (.:))
+import Data.Aeson qualified as Json
 import Data.Aeson.Types (FromJSON)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
@@ -45,18 +46,18 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
+import Datastar qualified
 import Favicon (Png)
 import Favicon qualified
 import GHC.Generics (Generic)
 import Game qualified
 import GenUuid (GenUuid, nextUuid, runGenUuid)
-import Html
+import Html qualified
 import JavaScript qualified
 import Lucid (Html, HtmlT, ToHtml (..))
 import Lucid.Base (makeAttributes, renderBS)
 import Lucid.Datastar
 import Lucid.Html5
-import MainPageManager qualified
 import Message
 import Network.Wai.Handler.Warp qualified as Warp
 import Numeric.Natural (Natural)
@@ -64,7 +65,6 @@ import Queue
 import QueueManager qualified
 import Random (runRandom)
 import RawSse
-import RenderHtml qualified
 import Servant (
     Application,
     Capture,
@@ -87,6 +87,7 @@ import Servant qualified
 import Servant.API (Header, JSON, StdMethod (..), UVerb, WithStatus)
 import Servant.API.ContentTypes.Lucid (HTML)
 import Servant.API.Stream (SourceToSourceIO (..))
+import Servant.HtmlRaw
 import Servant.Server.Generic (AsServerT, genericServeT)
 import Servant.Types.SourceT (SourceT)
 import Servant.Types.SourceT qualified as S
@@ -94,10 +95,20 @@ import Sleep
 import Snek
 import Store
 import StoreUpdate
+import Types
 import Unsafe.Coerce (unsafeCoerce)
 import User
 import Web.FormUrlEncoded (FromForm (..), parseUnique)
-import WebComponents (JS, boardSize_, food_, snekGameBoard_, sneks_)
+import WebComponents (
+    JS,
+    boardSize_,
+    food_,
+    location_,
+    reload_,
+    snekGameBoard_,
+    sneks_,
+    windowController_,
+ )
 import WebComponents qualified
 
 type (:>>) = (Servant.:>)
@@ -113,45 +124,15 @@ data RemoveComment = MkRemoveComment
 
 instance ToSse RemoveComment where
     toSse _ = toSse do
-        MkRawEvent
-            ( "event:datastar-patch-signals\n"
-                <> "data:signals {comment: ''}\n"
-            )
-
-data NewSettings = MkNewSettings
-    { maxFood :: Int
-    , maxPlayers :: Int
-    , queueMaxSize :: Natural
-    , boardSize :: Int
-    , gameFrameTimeMs :: Integer
-    , useWebComponent :: Bool
-    , anonymousMode :: Bool
-    , disableChat :: Bool
-    , maxBots :: Int
-    }
-
-instance FromJSON NewSettings where
-    parseJSON = withObject "Comment" $ \v ->
-        MkNewSettings
-            <$> v .: "maxFood"
-            <*> v .: "maxPlayers"
-            <*> v .: "queueMaxSize"
-            <*> v .: "boardSize"
-            <*> v .: "gameFrameTimeMs"
-            <*> v .: "useWebComponent"
-            <*> v .: "anonymousMode"
-            <*> v .: "disableChat"
-            <*> v .: "maxBots"
+        Datastar.patchSignals $ Json.object ["comment" .= ("" :: Text)]
 
 data HotReload = HotReload
     deriving (Show)
 
 instance ToSse HotReload where
-    toSse book = toSse do
-        MkRawEvent
-            ( "event:datastar-patch-elements\n"
-                <> "data:elements <window-controller id=\"window-controller\" reload></window-controller>\n"
-            )
+    toSse book =
+        toSse . Datastar.patchElements $
+            windowController_ [id_ "window-controller", reload_] mempty
 
 data Transmittal
     = TransmittalRaw RawEvent
@@ -162,40 +143,26 @@ data Transmittal
 instance ToSse Transmittal where
     toSse = \case
         (TransmittalRaw rawEvent) -> toSse rawEvent
-        LoginRedirect -> toSse do
-            MkRawEvent
-                ( "event:datastar-patch-elements\n"
-                    <> "data:elements <window-controller id=\"window-controller\" location=\"/login\"></window-controller>\n"
-                )
+        LoginRedirect ->
+            toSse . Datastar.patchElements $
+                windowController_ [id_ "window-controller", location_ "/login"] mempty
         UpdateUsernameSignal username -> toSse do
-            MkRawEvent
-                ( "event:datastar-patch-signals\n"
-                    <> "data:signals {username: '"
-                    <> renderBS (toHtml username)
-                    <> "'}\n"
-                )
+            Datastar.patchSignals $ Json.object ["username" .= username]
         UpdateIsPlayingSignal isPlaying -> toSse do
-            MkRawEvent
-                ( "event:datastar-patch-signals\n"
-                    <> "data:signals {isplaying: '"
-                    <> (if isPlaying then "true" else "false")
-                    <> "'}\n"
-                )
+            Datastar.patchSignals $ Json.object ["isplaying" .= isPlaying]
 
 data RedirectMain = MkRedirectMain
 
 instance ToSse RedirectMain where
-    toSse MkRedirectMain = toSse do
-        MkRawEvent
-            ( "event:datastar-patch-elements\n"
-                <> "data:elements <window-controller id=\"window-controller\" location=\"/\"></window-controller>\n"
-            )
+    toSse MkRedirectMain =
+        toSse . Datastar.patchElements $
+            windowController_ [id_ "window-controller", location_ "/"] mempty
 
 data Routes es route = Routes
     { _page
         :: route
-            :- Get '[HtmlRaw] BL.ByteString
-    , _loginPage :: route :- "login" :>> Get '[HtmlRaw] BL.ByteString
+            :- Get '[HtmlRaw] RenderedHtml
+    , _loginPage :: route :- "login" :>> Get '[HtmlRaw] RenderedHtml
     , _transmittal
         :: route
             :- "api"
@@ -236,7 +203,7 @@ data Routes es route = Routes
             :- "api"
                 :>> "settings"
                 :>> Header "Cookie" User
-                :>> ReqBody '[JSON] NewSettings
+                :>> ReqBody '[JSON] Settings
                 :>> SsePost (SourceIO EmptyResponse)
     , _css :: route :- "snek.css" :>> Get '[CSS] BS.ByteString
     , _snekcomponent :: route :- "snek-game-component.js" :>> Get '[JS] BS.ByteString
@@ -246,8 +213,8 @@ data Routes es route = Routes
     }
     deriving (Generic)
 
-loginPage :: (e :> es) => StoreRead e -> Eff es BL.ByteString
-loginPage = getLoginPageBS
+loginPage :: (e :> es) => StoreRead e -> Eff es RenderedHtml
+loginPage = getLoginPage
 
 login
     :: (e :> es)
@@ -299,56 +266,25 @@ settings
     -> Queue (User, Message) e4
     -> Queue () e5
     -> Maybe User
-    -> NewSettings
+    -> Settings
     -> Eff es (SourceIO EmptyResponse)
 settings storeWrite storeRead broadcast chatQueue mainPageQueue = \cases
     -- FIXME auth
     (Just user) newSettings -> do
-        putMaxFood storeWrite newSettings.maxFood
-        putBoardSize storeWrite newSettings.boardSize
-        putGameFrameTimeMs storeWrite newSettings.gameFrameTimeMs
-        putMaxPlayers storeWrite newSettings.maxPlayers
-        putQueueMaxSize storeWrite newSettings.queueMaxSize
-        putRenderWebComponent storeWrite newSettings.useWebComponent
-        putAnonymousMode storeWrite newSettings.anonymousMode
-        putMaxBots storeWrite newSettings.maxBots
-        settingsHtml <-
-            RenderHtml.settings
-                [ ("Max Food:", T.pack . show $ newSettings.maxFood)
-                , ("Max Players:", T.pack . show $ newSettings.maxPlayers)
-                , ("Queue Size:", T.pack . show $ newSettings.queueMaxSize)
-                , ("Board Size:", T.pack . show $ newSettings.boardSize)
-                ]
-        putSettingsHtml storeWrite settingsHtml
-        settingsFrame <- settingsToRawEvent settingsHtml
-        writeBroadcast broadcast (SettingsFrameUpdate settingsFrame)
-        oldDisableChat <- getDisableChat storeRead
-        when (oldDisableChat /= newSettings.disableChat) do
-            let disableChatRawEvent = disableChatToRawEvent newSettings.disableChat
-            putDisableChat storeWrite newSettings.disableChat
-            writeBroadcast broadcast (ChatInputUpdate disableChatRawEvent)
-            -- This is a bit hacky. But we need to get chat manager to render the chat.
-            writeQueue chatQueue (MkUser "" "", MkMessage "settings updated")
+        oldDisableChat <- (.disableChat) <$> getSettings storeRead
+        putSettings storeWrite newSettings
+        case (oldDisableChat, newSettings.disableChat) of
+            (True, False) -> do
+                enableChatEvent <- getChatEnabled storeRead
+                writeBroadcast broadcast (ChatEnable enableChatEvent)
+            (False, True) -> do
+                disableChatEvent <- getChatDisabled storeRead
+                writeBroadcast broadcast (ChatDisable disableChatEvent)
+            _ -> pure ()
         _ <- tryWriteQueue mainPageQueue ()
         singleToSourceIO MkEmptyResponse
     Nothing _ -> do
         singleToSourceIO MkEmptyResponse
-  where
-    disableChatToRawEvent disabled =
-        MkRawEvent
-            ( "event:datastar-patch-signals\n"
-                <> "data:signals {showchat: "
-                <> (if disabled then "false" else "true")
-                <> "}\n"
-            )
-    settingsToRawEvent :: Html () -> Eff es RawEvent
-    settingsToRawEvent html = do
-        pure $
-            MkRawEvent $
-                "event:datastar-patch-elements\n"
-                    <> "data:elements "
-                    <> renderBS html
-                    <> "\n"
 
 changeDirection
     :: (e :> es) => BroadcastServer Command e -> Direction -> Maybe User -> Eff es (SourceIO EmptyResponse)
@@ -362,14 +298,20 @@ changeDirection broadcast direction = \case
 
 -- Stare at the transmittal. Sing to the snek rattle.
 transmittal
-    :: (e :> es)
-    => BroadcastClient StoreUpdate e
+    :: (e1 :> es, e2 :> es)
+    => StoreChatRead e1
+    -> BroadcastClient StoreUpdate e2
     -> Maybe User
     -> Eff es (SourceIO Transmittal)
-transmittal gameStateBroadcast = \case
+transmittal store gameStateBroadcast = \case
     Just user -> streamToSourceIO \out -> do
         evalState False \isPlayingS -> do
             yield out $ UpdateUsernameSignal user.name
+            maybeChatEnabled store >>= \case
+                Nothing -> pure ()
+                -- There is a race condition here. Before reading any state,
+                -- we should first subscribe to events.
+                Just chatEnabled -> yield out (TransmittalRaw chatEnabled)
             forEach (likeAndSubscribe gameStateBroadcast) \case
                 GameFrameUpdate framePerUser defaultFrame sneksDirections -> do
                     let frame = Map.findWithDefault defaultFrame user.userId framePerUser
@@ -382,13 +324,11 @@ transmittal gameStateBroadcast = \case
                     yield out $ TransmittalRaw frame
                 ChatNewMessage message ->
                     yield out $ TransmittalRaw message
-                ChatInputUpdate frame ->
+                ChatEnable frame ->
                     yield out $ TransmittalRaw frame
-                SettingsFrameUpdate frame ->
+                ChatDisable frame ->
                     yield out $ TransmittalRaw frame
                 UsernameUpdate event ->
-                    yield out $ TransmittalRaw event
-                QueueUpdate event ->
                     yield out $ TransmittalRaw event
     Nothing -> singleToSourceIO LoginRedirect
   where
@@ -408,8 +348,8 @@ hotreload once = only once $ streamToSourceIO \out -> do
     yield out HotReload
     only once $ yield out HotReload
 
-page :: (e :> es) => StoreRead e -> Eff es BL.ByteString
-page = getMainPageBS
+page :: (e :> es) => StoreRead e -> Eff es RenderedHtml
+page = getMainPage
 
 -- FIXME This foe is beyond me.
 -- This code "works", but I can pass any handler to servant,
@@ -421,7 +361,7 @@ run :: IO ()
 run = runEff \io -> do
     -- Bluefin pyramid of doom.
     BC.runSTM io \stme -> do
-        runStore io stme \storeReadMain storeWriteMain -> do
+        runStore io stme \storeReadMain storeWriteMain storeChatReadMain -> do
             runBroadcast io storeReadMain \broadcastGameStateClientMain broadcastGameStateServerMain -> do
                 runBroadcast io storeReadMain \broadcastCommandClientMain broadcastCommandServerMain -> do
                     runRandom io \randomMain -> do
@@ -431,16 +371,6 @@ run = runEff \io -> do
                                     runQueue stme 2 \mainPageQueueMain -> do
                                         BC.withNonDet io \nonDet -> do
                                             BC.scoped nonDet \scope -> do
-                                                _ <- BC.fork scope $ \acc -> do
-                                                    broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
-                                                    broadcastGameStateClient <- accessConcurrently acc broadcastGameStateClientMain
-                                                    storeRead <- accessConcurrently acc storeReadMain
-                                                    storeWrite <- accessConcurrently acc storeWriteMain
-                                                    storeWrite <- accessConcurrently acc storeWriteMain
-                                                    mainPageQueue <- accessConcurrently acc mainPageQueueMain
-                                                    MainPageManager.run storeWrite storeRead mainPageQueue
-                                                    pure ()
-
                                                 _ <- BC.fork scope $ \acc -> do
                                                     random <- accessConcurrently acc randomMain
                                                     broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
@@ -525,6 +455,7 @@ run = runEff \io -> do
                                                     genUuid <- accessConcurrently acc genUuidMain
                                                     storeRead <- accessConcurrently acc storeReadMain
                                                     storeWrite <- accessConcurrently acc storeWriteMain
+                                                    storeChatRead <- accessConcurrently acc storeChatReadMain
                                                     broadcastGameStateServer <- accessConcurrently acc broadcastGameStateServerMain
                                                     mainPageQueue <- accessConcurrently acc mainPageQueueMain
                                                     runOnce ioLocal \once -> do
@@ -533,7 +464,7 @@ run = runEff \io -> do
                                                                 Routes
                                                                     { _page = page storeRead
                                                                     , _loginPage = loginPage storeRead
-                                                                    , _transmittal = transmittal broadcastGameStateClient
+                                                                    , _transmittal = transmittal storeChatRead broadcastGameStateClient
                                                                     , _hotreload = hotreload once
                                                                     , _play = play storeRead broadcastCommandServer
                                                                     , _chat = chat broadcastCommandServer

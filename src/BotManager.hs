@@ -26,6 +26,7 @@ import Random
 import Snek
 import Store
 import StoreUpdate
+import Types
 import User
 
 run
@@ -64,9 +65,9 @@ manageBots storeRead broadcastCommand random genUuid snekBotsS snekBotInQueueS s
     let aliveSnekBots =
             filter (`elem` aliveSneksIds) snekBots
     put snekBotsS aliveSnekBots
-    maxBots <- getMaxBots storeRead
+    maxBots <- (.maxBots) <$> getSettings storeRead
     foodPositions <- getFoodPositions storeRead
-    boardSize <- getBoardSize storeRead
+    boardSize <- (.boardSize) <$> getSettings storeRead
     get snekBotInQueueS >>= \case
         Nothing -> pure ()
         Just userId -> when (userId `elem` aliveSneksIds) do

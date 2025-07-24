@@ -11,6 +11,7 @@ import RawSse (RawEvent (..))
 import Sleep
 import Store
 import StoreUpdate
+import Types
 import User
 
 run
@@ -22,7 +23,7 @@ run
     -> Sleep e5
     -> Eff es ()
 run storeWrite storeRead queue broadcastServer sleep = do
-    initQueueMaxSize <- getQueueMaxSize storeRead
+    initQueueMaxSize <- (.queueMaxSize) <$> getSettings storeRead
     evalState initQueueMaxSize \queueSize -> do
         forever do
             getNewPlayer storeRead >>= \case
@@ -32,22 +33,12 @@ run storeWrite storeRead queue broadcastServer sleep = do
                         Nothing -> pure ()
                         user -> putNewPlayer storeWrite user
             -- TODO resize queue here
-            queueMaxSize <- getQueueMaxSize storeRead
+            queueMaxSize <- (.queueMaxSize) <$> getSettings storeRead
             queueCurrentSize <- queueLength queue
             getIsQueueFull storeRead >>= \case
                 True -> do
                     when (queueCurrentSize <= queueMaxSize `div` 2) do
                         putIsQueueFull storeWrite False
-                        writeBroadcast broadcastServer $ QueueUpdate (queueEvent False)
                 False -> when (queueCurrentSize == queueMaxSize) do
                     putIsQueueFull storeWrite True
-                    writeBroadcast broadcastServer $ QueueUpdate (queueEvent True)
             sleepMs sleep 50
-  where
-    queueEvent isFull =
-        MkRawEvent
-            ( "event:datastar-patch-signals\n"
-                <> "data:signals {queuefull: '"
-                <> (if isFull then "true" else "false")
-                <> "'}\n"
-            )

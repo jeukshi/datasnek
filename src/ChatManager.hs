@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Redundant <$>" #-}
 module ChatManager (run) where
 
 import Bluefin.Eff
@@ -11,14 +14,15 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (for_)
 import Data.Functor.Identity (Identity)
 import Data.Text (Text)
+import Html qualified
 import Lucid hiding (for_)
 import Message
 import Queue
 import RawSse
-import RenderHtml qualified
 import Sleep
 import Store
 import StoreUpdate
+import Types
 import User
 
 run
@@ -32,11 +36,11 @@ run
 run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
     newMessage <- readQueue queue
     oldMessages <- getChatMessages storeRead
-    getDisableChat storeRead >>= \case
+    (.disableChat) <$> getSettings storeRead >>= \case
         False -> do
             -- CSS will reverse our list.
             let newMessages = take 20 (newMessage : oldMessages)
-            chatHtml <- RenderHtml.chatMessages newMessages
+            chatHtml <- Html.chatMessages newMessages
             let rawEvent = renderChatToRawEvent chatHtml
             let rawMessageEvent = renderMessageToRawEvent newMessage
             putChatMessages storeWrite newMessages
@@ -45,7 +49,7 @@ run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
             _ <- tryWriteQueue mainPageQueue ()
             writeBroadcast broadcastServer (ChatNewMessage rawMessageEvent)
         True -> do
-            chatHtml <- RenderHtml.chatMessages []
+            chatHtml <- Html.chatMessages []
             let rawEvent = renderChatToRawEvent chatHtml
             putChatContent storeWrite rawEvent
             putChatContentHtml storeWrite chatHtml
@@ -68,5 +72,5 @@ renderMessageToRawEvent messages =
             <> "data: selector #chat-messages\n"
             <> "data: mode prepend\n"
             <> "data:elements "
-            <> renderBS (RenderHtml.renderMessage messages)
+            <> renderBS (Html.renderMessage messages)
             <> "\n"

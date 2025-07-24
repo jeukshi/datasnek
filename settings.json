@@ -1,11 +1,11 @@
 {
   "maxFood": 20,
   "maxPlayers": 40,
-  "queueMaxSize": 50,
+  "queueMaxSize": 80,
   "boardSize": 80,
   "gameFrameTimeMs": 200,
   "useWebComponent": false,
   "anonymousMode": false,
   "disableChat": false,
-  "maxBots": 50
+  "maxBots": 100
 }

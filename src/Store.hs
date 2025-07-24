@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 
 module Store where
@@ -19,6 +20,9 @@ import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Strict.Map (Map)
 import Data.Strict.Map qualified as Map
+import Datastar qualified
+import GHC.Records
+import Html qualified
 import JavaScript qualified
 import Lucid (Html)
 import Lucid.Base (renderBS)
@@ -27,8 +31,8 @@ import Lucid.Html5
 import Message
 import Numeric.Natural (Natural)
 import RawSse (RawEvent (..))
-import RenderHtml qualified
 import Snek
+import Types
 import User
 
 -- General guidance here is that if something is an IORef,
@@ -36,27 +40,19 @@ import User
 -- by more than one. This is not enforced by an effect system.
 data Store = UnsafeMkStore
     { gameFrame :: IORef RawEvent
-    , mainPageBS :: IORef BL.ByteString
-    , leaderboardHtml :: IORef (Html ())
-    , loginPageBS :: IORef BL.ByteString
+    , mainPage :: RenderedHtml
+    , loginPage :: RenderedHtml
+    , chatEnabled :: RawEvent
+    , chatDisabled :: RawEvent
     , snekDirection :: MVar SneksDirections
     , sneks :: IORef Sneks
-    , maxFood :: IORef Int
     , foodPositions :: IORef (Set (Int, Int))
     , newPlayer :: TVar (Maybe User)
-    , maxPlayers :: IORef Int
     , isQueueFull :: IORef Bool
-    , queueMaxSize :: IORef Natural
-    , boardSize :: IORef Int
-    , gameFrameTimeMs :: IORef Integer
-    , renderWebComponent :: IORef Bool
     , chatMessages :: IORef [(User, Message)]
     , chatContent :: IORef RawEvent
     , chatContentHtml :: IORef (Html ())
-    , disableChat :: IORef Bool
-    , anonymousMode :: IORef Bool
-    , settingsHtml :: IORef (Html ())
-    , maxBots :: IORef Int
+    , settings :: IORef Settings
     }
 
 data StoreWrite e = UnsafeMkStoreWrite
@@ -95,73 +91,82 @@ instance ThreadSafe StoreRead where
             <*> accessConcurrently access stme
             <*> pure store
 
+data StoreChatRead e = UnsafeMkStoreChatRead
+    { ioe :: IOE e
+    , stme :: BC.STME e
+    , store :: Store
+    }
+
+instance Handle StoreChatRead where
+    mapHandle c =
+        UnsafeMkStoreChatRead
+            { ioe = mapHandle c.ioe
+            , stme = mapHandle c.stme
+            , store = c.store
+            }
+
+instance ThreadSafe StoreChatRead where
+    accessConcurrently access (UnsafeMkStoreChatRead io stme store) =
+        UnsafeMkStoreChatRead
+            <$> accessConcurrently access io
+            <*> accessConcurrently access stme
+            <*> pure store
+
 runStore
     :: (e1 :> es, e2 :> es)
     => IOE e1
     -> BC.STME e2
-    -> (forall e. StoreRead e -> StoreWrite e -> Eff (e :& es) r)
+    -> (forall e. StoreRead e -> StoreWrite e -> StoreChatRead e -> Eff (e :& es) r)
     -> Eff es r
 runStore io stme action = do
     gameFrame <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
-    mainPageBS <- effIO io do newIORef "" -- Nobody will notice.
-    loginPageHtml <- RenderHtml.loginPage
-    loginPageBS <- effIO io do newIORef (renderBS loginPageHtml)
-    let leaderboardHtml = RenderHtml.leaderboard True [] []
-    leaderboardHtmlIoRef <- effIO io do newIORef leaderboardHtml
+    let mainPage = renderHtml Html.mainPage
+    let loginPage = renderHtml Html.loginPage
+    let chatEnabled = Datastar.patchElements Html.chatEnabled
+    let chatDisabled = Datastar.patchElements Html.chatDisabled
     snekDirection <- effIO io do newMVar Map.empty
     sneks <- effIO io do newIORef []
-    maxFood <- effIO io do newIORef 5
+    settings <- effIO io do
+        newIORef
+            MkSettings
+                { maxFood = 5
+                , maxPlayers = 5
+                , queueMaxSize = 5
+                , boardSize = 40
+                , gameFrameTimeMs = 200
+                , useWebComponent = True
+                , anonymousMode = True
+                , disableChat = True
+                , maxBots = 40
+                }
     foodPositions <- effIO io do newIORef Set.empty
     isQueueFull <- effIO io do newIORef False
-    queueMaxSize <- effIO io do newIORef 5
-    maxPlayers <- effIO io do newIORef 5
     newPlayer <- effIO io do newTVarIO Nothing
-    boardSize <- effIO io do newIORef 40
-    gameFrameTimeMs <- effIO io do newIORef 200
-    renderWebComponent <- effIO io do newIORef True
     chatContent <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
-    chatHtml <- RenderHtml.chatMessages []
+    chatHtml <- Html.chatMessages []
     chatContentHtml <- effIO io do newIORef chatHtml
     chatMessages <- effIO io do newIORef []
-    disableChat <- effIO io do newIORef True
-    anonymousMode <- effIO io do newIORef True
-    settingsHtml <-
-        RenderHtml.settings
-            [ ("Max Food:", "n/a")
-            , ("Max Players:", "n/a")
-            , ("Queue Size:", "n/a")
-            , ("Board Size:", "n/a")
-            ]
-    settingsHtmlIoRef <- effIO io do newIORef settingsHtml
-    maxBots <- effIO io do newIORef 50
     let store =
             UnsafeMkStore
                 { gameFrame = gameFrame
-                , mainPageBS = mainPageBS
-                , loginPageBS = loginPageBS
-                , leaderboardHtml = leaderboardHtmlIoRef
+                , mainPage = mainPage
+                , loginPage = loginPage
+                , chatEnabled = chatEnabled
+                , chatDisabled = chatDisabled
                 , snekDirection = snekDirection
                 , sneks = sneks
-                , maxFood = maxFood
                 , foodPositions = foodPositions
                 , newPlayer = newPlayer
-                , maxPlayers = maxPlayers
+                , settings = settings
                 , isQueueFull = isQueueFull
-                , queueMaxSize = queueMaxSize
-                , boardSize = boardSize
-                , gameFrameTimeMs = gameFrameTimeMs
-                , renderWebComponent = renderWebComponent
                 , chatContent = chatContent
                 , chatContentHtml = chatContentHtml
                 , chatMessages = chatMessages
-                , disableChat = disableChat
-                , anonymousMode = anonymousMode
-                , settingsHtml = settingsHtmlIoRef
-                , maxBots = maxBots
                 }
     let storeWrite = UnsafeMkStoreWrite (mapHandle io) (mapHandle stme) store
     let storeRead = UnsafeMkStoreRead (mapHandle io) (mapHandle stme) store
-    useImplIn2 action storeRead storeWrite
+    let storeChatRead = UnsafeMkStoreChatRead (mapHandle io) (mapHandle stme) store
+    useImplIn3 action storeRead storeWrite storeChatRead
 
 getGameFrame :: (e :> es) => StoreRead e -> Eff es RawEvent
 getGameFrame (UnsafeMkStoreRead io stme store) =
@@ -171,25 +176,17 @@ putGameFrame :: (e :> es) => StoreWrite e -> RawEvent -> Eff es ()
 putGameFrame (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.gameFrame
 
-getMainPageBS :: (e :> es) => StoreRead e -> Eff es BL.ByteString
-getMainPageBS (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.mainPageBS
+getMainPage :: (e :> es) => StoreRead e -> Eff es RenderedHtml
+getMainPage (UnsafeMkStoreRead io stme store) = return store.mainPage
 
-putMainPageBS :: (e :> es) => StoreWrite e -> BL.ByteString -> Eff es ()
-putMainPageBS (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.mainPageBS
+getLoginPage :: (e :> es) => StoreRead e -> Eff es RenderedHtml
+getLoginPage (UnsafeMkStoreRead io stme store) = return store.loginPage
 
-getLoginPageBS :: (e :> es) => StoreRead e -> Eff es BL.ByteString
-getLoginPageBS (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.loginPageBS
+getChatEnabled :: (e :> es) => StoreRead e -> Eff es RawEvent
+getChatEnabled (UnsafeMkStoreRead io stme store) = return store.chatEnabled
 
-getLeaderboardHtml :: (e :> es) => StoreRead e -> Eff es (Html ())
-getLeaderboardHtml (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.leaderboardHtml
-
-putLeaderboardHtml :: (e :> es) => StoreWrite e -> Html () -> Eff es ()
-putLeaderboardHtml (UnsafeMkStoreWrite io stme store) = do
-    effIO io . writeIORef store.leaderboardHtml
+getChatDisabled :: (e :> es) => StoreRead e -> Eff es RawEvent
+getChatDisabled (UnsafeMkStoreRead io stme store) = return store.chatDisabled
 
 atomicModifySnekDirection
     :: (e :> es)
@@ -214,14 +211,6 @@ putSneks :: (e :> es) => StoreWrite e -> Sneks -> Eff es ()
 putSneks (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.sneks
 
-getMaxFood :: (e :> es) => StoreRead e -> Eff es Int
-getMaxFood (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.maxFood
-
-putMaxFood :: (e :> es) => StoreWrite e -> Int -> Eff es ()
-putMaxFood (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.maxFood
-
 getFoodPositions :: (e :> es) => StoreRead e -> Eff es (Set (Int, Int))
 getFoodPositions (UnsafeMkStoreRead io stme store) =
     effIO io $ readIORef store.foodPositions
@@ -229,14 +218,6 @@ getFoodPositions (UnsafeMkStoreRead io stme store) =
 putFoodPositions :: (e :> es) => StoreWrite e -> Set (Int, Int) -> Eff es ()
 putFoodPositions (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.foodPositions
-
-getMaxPlayers :: (e :> es) => StoreRead e -> Eff es Int
-getMaxPlayers (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.maxPlayers
-
-putMaxPlayers :: (e :> es) => StoreWrite e -> Int -> Eff es ()
-putMaxPlayers (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.maxPlayers
 
 getNewPlayer :: (e :> es) => StoreRead e -> Eff es (Maybe User)
 getNewPlayer (UnsafeMkStoreRead io stme store) =
@@ -253,38 +234,6 @@ getIsQueueFull (UnsafeMkStoreRead io stme store) =
 putIsQueueFull :: (e :> es) => StoreWrite e -> Bool -> Eff es ()
 putIsQueueFull (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.isQueueFull
-
-getQueueMaxSize :: (e :> es) => StoreRead e -> Eff es Natural
-getQueueMaxSize (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.queueMaxSize
-
-putQueueMaxSize :: (e :> es) => StoreWrite e -> Natural -> Eff es ()
-putQueueMaxSize (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.queueMaxSize
-
-getBoardSize :: (e :> es) => StoreRead e -> Eff es Int
-getBoardSize (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.boardSize
-
-putBoardSize :: (e :> es) => StoreWrite e -> Int -> Eff es ()
-putBoardSize (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.boardSize
-
-getGameFrameTimeMs :: (e :> es) => StoreRead e -> Eff es Integer
-getGameFrameTimeMs (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.gameFrameTimeMs
-
-putGameFrameTimeMs :: (e :> es) => StoreWrite e -> Integer -> Eff es ()
-putGameFrameTimeMs (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.gameFrameTimeMs
-
-getRenderWebComponent :: (e :> es) => StoreRead e -> Eff es Bool
-getRenderWebComponent (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.renderWebComponent
-
-putRenderWebComponent :: (e :> es) => StoreWrite e -> Bool -> Eff es ()
-putRenderWebComponent (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.renderWebComponent
 
 getChatMessages :: (e :> es) => StoreRead e -> Eff es [(User, Message)]
 getChatMessages (UnsafeMkStoreRead io stme store) =
@@ -310,34 +259,17 @@ putChatContentHtml :: (e :> es) => StoreWrite e -> Html () -> Eff es ()
 putChatContentHtml (UnsafeMkStoreWrite io stme store) =
     effIO io . writeIORef store.chatContentHtml
 
-getDisableChat :: (e :> es) => StoreRead e -> Eff es Bool
-getDisableChat (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.disableChat
+getSettings :: (e :> es) => StoreRead e -> Eff es Settings
+getSettings (UnsafeMkStoreRead io stme store) =
+    effIO io $ readIORef store.settings
 
-putDisableChat :: (e :> es) => StoreWrite e -> Bool -> Eff es ()
-putDisableChat (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.disableChat
+putSettings :: (e :> es) => StoreWrite e -> Settings -> Eff es ()
+putSettings (UnsafeMkStoreWrite io stme store) =
+    effIO io . writeIORef store.settings
 
-getAnonymousMode :: (e :> es) => StoreRead e -> Eff es Bool
-getAnonymousMode (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.anonymousMode
-
-putAnonymousMode :: (e :> es) => StoreWrite e -> Bool -> Eff es ()
-putAnonymousMode (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.anonymousMode
-
-getSettingsHtml :: (e :> es) => StoreRead e -> Eff es (Html ())
-getSettingsHtml (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.settingsHtml
-
-putSettingsHtml :: (e :> es) => StoreWrite e -> Html () -> Eff es ()
-putSettingsHtml (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.settingsHtml
-
-getMaxBots :: (e :> es) => StoreRead e -> Eff es Int
-getMaxBots (UnsafeMkStoreRead io stme store) =
-    effIO io $ readIORef store.maxBots
-
-putMaxBots :: (e :> es) => StoreWrite e -> Int -> Eff es ()
-putMaxBots (UnsafeMkStoreWrite io stme store) =
-    effIO io . writeIORef store.maxBots
+maybeChatEnabled :: (e :> es) => StoreChatRead e -> Eff es (Maybe RawEvent)
+maybeChatEnabled (UnsafeMkStoreChatRead io stme store) = do
+    settings <- effIO io do readIORef store.settings
+    if settings.disableChat
+        then return Nothing
+        else return $ Just store.chatEnabled

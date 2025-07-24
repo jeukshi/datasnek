@@ -33,24 +33,26 @@ library
     , GenUuid
     , Lucid.Datastar
     , JavaScript
+    , Datastar
     , Queue
     , QueueManager
     , CommandManager
     , ChatManager
-    , MainPageManager
-    , RenderHtml
+    , Html
     , Random
     , Snek
     , Sleep
     , Store
     , StoreUpdate
     , User
+    , GameState
     , Message
     , Color
     , RawSse
     , WebComponents
     , BotManager
-    , Html
+    , Types
+    , Servant.HtmlRaw
     , Css
     , Favicon
   data-files: static/snek.css

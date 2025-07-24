@@ -36,30 +36,23 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TL
 import Data.Traversable (for)
+import GameState
+import Html qualified
 import Lucid hiding (for_)
 import Lucid.Datastar (dataAttr_)
 import Message
 import Queue
 import Random
 import RawSse (RawEvent (..))
-import RenderHtml qualified
 import Servant (FromHttpApiData (..))
 import Sleep
 import Snek
 import Store
 import StoreUpdate
+import Types
 import Unsafe.Coerce (unsafeCoerce)
 import User
 import WebComponents
-
-data GameState = MkGameState
-    { boardSize :: Int
-    , foodPositions :: Set (Int, Int)
-    , aliveSneks :: Sneks
-    , newPlayer :: Maybe (Snek, SnekDirection)
-    , maxPlayers :: Int
-    }
-    deriving (Show)
 
 data NewPlayerStatus
     = NoNewPlayer
@@ -194,11 +187,11 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
     evalState [] \allTimeBestS -> do
         evalState [] \currentBestS -> do
             foreverWithSleep sleep 200 do
-                boardSize <- getBoardSize storeRead
                 foodPositions <- getFoodPositions storeRead
-                maxFood <- getMaxFood storeRead
+                boardSize <- (.boardSize) <$> getSettings storeRead
+                maxFood <- (.maxFood) <$> getSettings storeRead
                 maybeNewFood <- maybeSpawnFood random boardSize (Set.size foodPositions) maxFood
-                maxPlayers <- getMaxPlayers storeRead
+                maxPlayers <- (.maxPlayers) <$> getSettings storeRead
                 mbNewPlayer <-
                     getNewPlayer storeRead >>= \case
                         Nothing -> pure Nothing
@@ -216,22 +209,26 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                     -- There was a new player, and we successfully added it to the game.
                     (Just _, Nothing) -> putNewPlayer storeWrite Nothing
                     _ -> pure ()
-                renderWebComponent <- getRenderWebComponent storeRead
-                anonymousMode <- getAnonymousMode storeRead
+                renderWebComponent <- (.useWebComponent) <$> getSettings storeRead
+                anonymousMode <- (.anonymousMode) <$> getSettings storeRead
                 calculateLeaderboard allTimeBestS currentBestS newGameState.aliveSneks
                 allTimeBest <- get allTimeBestS
                 currentBest <- get currentBestS
-                let leaderboardHtml = RenderHtml.leaderboard anonymousMode currentBest allTimeBest
-                putLeaderboardHtml storeWrite leaderboardHtml
+
+                queueMaxSize <- (.queueMaxSize) <$> getSettings storeRead
+                settings <- getSettings storeRead
+                let settingsHtml =
+                        Html.settings settings
+                let leaderboardHtml = Html.leaderboard anonymousMode currentBest allTimeBest
                 let (event, frame) =
-                        render leaderboardHtml anonymousMode newGameState newSneksDirections renderWebComponent
+                        render settingsHtml leaderboardHtml anonymousMode newGameState newSneksDirections renderWebComponent
                 -- FIXME name the thing
                 putSneks storeWrite newGameState.aliveSneks
                 putFoodPositions storeWrite newGameState.foodPositions
                 putGameFrame storeWrite frame
                 writeBroadcast broadcastGameStateServer event
                 _ <- tryWriteQueue mainPageQueue ()
-                getGameFrameTimeMs storeRead
+                (.gameFrameTimeMs) <$> getSettings storeRead
 
 maybeSpawnFood :: (e :> es) => Random e -> Int -> Int -> Int -> Eff es (Maybe (Int, Int))
 maybeSpawnFood random boardSize currentFood maxFood =
@@ -245,15 +242,17 @@ maybeSpawnFood random boardSize currentFood maxFood =
                 then Just <$> randomIn random boardSize boardSize
                 else pure Nothing
 
-render :: Html () -> Bool -> GameState -> SneksDirections -> Bool -> (StoreUpdate, RawEvent)
-render leaderboardHtml anonymousMode gameState sneksDirections = \cases
+render
+    :: Html () -> Html () -> Bool -> GameState -> SneksDirections -> Bool -> (StoreUpdate, RawEvent)
+render settingsHtml leaderboardHtml anonymousMode gameState sneksDirections = \cases
     False -> do
         let gameFrame =
                 renderBoardToRawEvent
-                    leaderboardHtml
-                    anonymousMode
-                    (MkUser "" "")
-                    gameState
+                    . Html.renderFrame settingsHtml leaderboardHtml
+                    $ Html.renderBoard
+                        anonymousMode
+                        (MkUser "" "")
+                        gameState
         -- This is not very efficient.
         let userGameFrame =
                 Map.fromList
@@ -261,63 +260,29 @@ render leaderboardHtml anonymousMode gameState sneksDirections = \cases
                         ( \snek ->
                             ( snek.user.userId
                             , renderBoardToRawEvent
-                                leaderboardHtml
-                                anonymousMode
-                                snek.user
-                                gameState
+                                . Html.renderFrame settingsHtml leaderboardHtml
+                                $ Html.renderBoard
+                                    anonymousMode
+                                    snek.user
+                                    gameState
                             )
                         )
                     $ gameState.aliveSneks
         (GameFrameUpdate userGameFrame gameFrame sneksDirections, gameFrame)
     True -> do
-        let webComponent = renderWebComponentToRawEvent leaderboardHtml anonymousMode gameState
-        (WebComponentUpdate webComponent sneksDirections, webComponent)
+        let webComponent =
+                Html.renderFrame settingsHtml leaderboardHtml $
+                    Html.renderBoardWebComponent anonymousMode gameState
+        let rawEvent = renderWebComponentToRawEvent webComponent
+        (WebComponentUpdate rawEvent sneksDirections, rawEvent)
 
-renderBoardToRawEvent :: Html () -> Bool -> User -> GameState -> RawEvent
-renderBoardToRawEvent leaderboardHtml anonymousMode user gameState =
+renderBoardToRawEvent :: Html () -> RawEvent
+renderBoardToRawEvent frameHtml =
     MkRawEvent $
         "event:datastar-patch-elements\n"
             <> "data:elements "
-            <> renderBoard leaderboardHtml anonymousMode user gameState
+            <> renderBS frameHtml
             <> "\n"
-
-renderBoard :: Html () -> Bool -> User -> GameState -> BL.ByteString
-renderBoard leaderboardHtml anonymousMode renderForUser gameState = renderBS do
-    div_ [id_ "game-area", class_ "game-area"] do
-        leaderboardHtml
-        div_ [id_ "board", class_ "board"] $
-            sequence_
-                [ div_ [class_ "board-container"] do
-                    sequence_
-                        [ case Map.lookup (c, r) snakeCells of
-                            (Just (user, color, isHead)) -> div_ [class_ (base <> " snake"), style_ ("background-color:" <> color)] do
-                                let username = if anonymousMode then "snek" else toHtml user.name
-                                if isHead
-                                    then
-                                        if renderForUser.userId == user.userId
-                                            then div_ [class_ "nameplate-me"] username
-                                            else div_ [class_ "nameplate"] username
-                                    else mempty
-                            Nothing -> do
-                                let cls =
-                                        if (c, r) `elem` gameState.foodPositions
-                                            then base <> " food"
-                                            else base
-                                div_ [class_ cls] mempty
-                        | c <- [0 .. gameState.boardSize]
-                        ]
-                | r <- [0 .. gameState.boardSize]
-                ]
-  where
-    snakeCells :: Map (Int, Int) (User, Text, Bool)
-    snakeCells =
-        Map.fromList $
-            [(coord, (s.user, s.color, False)) | s <- gameState.aliveSneks, coord <- s.restOfSnek]
-                -- It is important that heads go last into the list.
-                -- That way head will be always in the map,
-                -- so we can display nameplate properly.
-                ++ [(s.headOfSnek, (s.user, s.color, True)) | s <- gameState.aliveSneks]
-    base = "board-item"
 
 randomSnekAndDirection
     :: (e :> es)
@@ -353,46 +318,13 @@ randomSnekAndDirection random user maxSize = do
                 }
     pure (snek, snekDir)
 
-renderWebComponentToRawEvent :: Html () -> Bool -> GameState -> RawEvent
-renderWebComponentToRawEvent leaderboardHtml anonymousMode gameState =
+renderWebComponentToRawEvent :: Html () -> RawEvent
+renderWebComponentToRawEvent html =
     MkRawEvent $
         "event:datastar-patch-elements\n"
             <> "data:elements "
-            <> renderWebComponent leaderboardHtml anonymousMode gameState
+            <> renderBS html
             <> "\n"
-
-encodeToText :: Aeson.Value -> T.Text
-encodeToText = T.decodeUtf8 . BL.toStrict . Aeson.encode
-
-renderWebComponent :: Html () -> Bool -> GameState -> BL.ByteString
-renderWebComponent leaderboardHtml anonymousMode gameState = renderBS $ do
-    let foodJson = encodeToText . Aeson.toJSON . Set.toList $ gameState.foodPositions
-    let snakesJson = encodeToText . Aeson.toJSON $ map snekToObject gameState.aliveSneks
-    let boardSizeTxt = toText gameState.boardSize
-    div_ [id_ "game-area", class_ "game-area"] do
-        leaderboardHtml
-        div_ [id_ "board", class_ "board"] do
-            snekGameBoard_
-                [ id_ "snek-game-board"
-                , boardSize_ boardSizeTxt
-                , food_ foodJson
-                , sneks_ snakesJson
-                , dataAttr_ "username" "$username"
-                , anonymous_ anonymousMode
-                ]
-                mempty
-
-toText :: (Show a) => a -> Text
-toText = T.pack . show
-
-snekToObject :: Snek -> Aeson.Value
-snekToObject (MkSnek (MkUser name userId) color (hx, hy) rest) =
-    Aeson.object
-        [ "username" Aeson..= Aeson.String name
-        , "color" Aeson..= Aeson.String color
-        , "headOfSnek" Aeson..= Aeson.toJSON (hx, hy)
-        , "restOfSnek" Aeson..= Aeson.toJSON rest
-        ]
 
 updateScoreboard :: Int -> Sneks -> Sneks -> Maybe Sneks
 updateScoreboard maxEntries currentSneks newSneks = do

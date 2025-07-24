@@ -10,7 +10,6 @@ data StoreUpdate
     | WebComponentUpdate RawEvent SneksDirections
     | ChatFrameUpdate RawEvent
     | ChatNewMessage RawEvent
-    | SettingsFrameUpdate RawEvent
     | UsernameUpdate RawEvent
-    | ChatInputUpdate RawEvent
-    | QueueUpdate RawEvent
+    | ChatEnable RawEvent
+    | ChatDisable RawEvent
