@@ -76,10 +76,15 @@ renderMessage (user, message) = do
 settings :: Settings -> Html ()
 settings settings = div_ [id_ "settings", class_ "settings"] do
     div_ [class_ "settings-grid"] do
-        settingItem ("Max Food:", T.pack . show $ settings.maxFood)
-        settingItem ("Max Players:", T.pack . show $ settings.maxPlayers)
-        settingItem ("Queue Size:", T.pack . show $ settings.queueMaxSize)
-        settingItem ("Board Size:", T.pack . show $ settings.boardSize)
+        settingItem ("maxFood:", T.pack . show $ settings.maxFood)
+        settingItem ("maxPlayers:", T.pack . show $ settings.maxPlayers)
+        settingItem ("queueMaxSize:", T.pack . show $ settings.queueMaxSize)
+        settingItem ("boardSize:", T.pack . show $ settings.boardSize)
+        settingItem ("gameFrameTimeMs:", T.pack . show $ settings.gameFrameTimeMs)
+        settingItem ("useWebComponent:", if settings.useWebComponent then "True" else "False")
+        settingItem ("anonymousMode:", if settings.anonymousMode then "True" else "False")
+        settingItem ("disableChat:", if settings.disableChat then "True" else "False")
+        settingItem ("maxBots:", T.pack . show $ settings.maxBots)
 
 settingItem :: (Text, Text) -> Html ()
 settingItem (label, value) =
