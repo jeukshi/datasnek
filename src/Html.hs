@@ -34,7 +34,10 @@ import WebComponents (
 
 chatEnabled :: Html ()
 chatEnabled = div_ [id_ "chat", class_ "chat"] do
-    div_ [id_ "chat-messages", class_ "chat-messages"] mempty
+    label_ [] do
+        input_ [type_ "checkbox", role_ "switch", checked_, dataBind_ "chaton"]
+        "chat"
+    div_ [id_ "chat-messages", class_ "chat-messages", dataShow_ "$chaton"] mempty
     div_ [dataSignals_ "comment" ""] mempty
     div_ [id_ "chat-input-container", class_ "chat-input-container"] do
         input_
@@ -49,6 +52,9 @@ chatEnabled = div_ [id_ "chat", class_ "chat"] do
 
 chatDisabled :: Html ()
 chatDisabled = div_ [id_ "chat", class_ "chat"] do
+    label_ [] do
+        input_ [type_ "checkbox", role_ "switch", checked_, dataBind_ "chaton"]
+        "chat"
     div_ [id_ "chat-messages", class_ "chat-messages", hidden_ ""] mempty
 
 chatMessages :: [(User, Message)] -> Eff es (Html ())
@@ -161,6 +167,7 @@ mainPage = pageHead do
 renderFrame :: Html () -> Html () -> Html () -> Html ()
 renderFrame settings leaderboard board = div_ [id_ "frame-container", class_ "frame-container"] do
     div_ [class_ "header"] do
+        div_ [dataText_ "$chaton"] mempty
         h1_ "Datasnek"
         button_
             [ id_ "play-button"
