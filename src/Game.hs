@@ -210,6 +210,7 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                     (Just _, Nothing) -> putNewPlayer storeWrite Nothing
                     _ -> pure ()
                 renderWebComponent <- (.useWebComponent) <$> getSettings storeRead
+                isQueueFull <- getIsQueueFull storeRead
                 anonymousMode <- (.anonymousMode) <$> getSettings storeRead
                 calculateLeaderboard allTimeBestS currentBestS newGameState.aliveSneks
                 allTimeBest <- get allTimeBestS
@@ -221,7 +222,14 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                         Html.settings settings
                 let leaderboardHtml = Html.leaderboard anonymousMode currentBest allTimeBest
                 let (event, frame) =
-                        render settingsHtml leaderboardHtml anonymousMode newGameState newSneksDirections renderWebComponent
+                        render
+                            settingsHtml
+                            leaderboardHtml
+                            isQueueFull
+                            anonymousMode
+                            newGameState
+                            newSneksDirections
+                            renderWebComponent
                 -- FIXME name the thing
                 putSneks storeWrite newGameState.aliveSneks
                 putFoodPositions storeWrite newGameState.foodPositions
@@ -243,12 +251,19 @@ maybeSpawnFood random boardSize currentFood maxFood =
                 else pure Nothing
 
 render
-    :: Html () -> Html () -> Bool -> GameState -> SneksDirections -> Bool -> (StoreUpdate, RawEvent)
-render settingsHtml leaderboardHtml anonymousMode gameState sneksDirections = \cases
+    :: Html ()
+    -> Html ()
+    -> Bool
+    -> Bool
+    -> GameState
+    -> SneksDirections
+    -> Bool
+    -> (StoreUpdate, RawEvent)
+render settingsHtml leaderboardHtml isQueueFull anonymousMode gameState sneksDirections = \cases
     False -> do
         let gameFrame =
                 renderBoardToRawEvent
-                    . Html.renderFrame settingsHtml leaderboardHtml
+                    . Html.renderFrame isQueueFull settingsHtml leaderboardHtml
                     $ Html.renderBoard
                         anonymousMode
                         (MkUser "" "")
@@ -260,7 +275,7 @@ render settingsHtml leaderboardHtml anonymousMode gameState sneksDirections = \c
                         ( \snek ->
                             ( snek.user.userId
                             , renderBoardToRawEvent
-                                . Html.renderFrame settingsHtml leaderboardHtml
+                                . Html.renderFrame isQueueFull settingsHtml leaderboardHtml
                                 $ Html.renderBoard
                                     anonymousMode
                                     snek.user
@@ -271,7 +286,7 @@ render settingsHtml leaderboardHtml anonymousMode gameState sneksDirections = \c
         (GameFrameUpdate userGameFrame gameFrame sneksDirections, gameFrame)
     True -> do
         let webComponent =
-                Html.renderFrame settingsHtml leaderboardHtml $
+                Html.renderFrame isQueueFull settingsHtml leaderboardHtml $
                     Html.renderBoardWebComponent anonymousMode gameState
         let rawEvent = renderWebComponentToRawEvent webComponent
         (WebComponentUpdate rawEvent sneksDirections, rawEvent)

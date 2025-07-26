@@ -131,7 +131,7 @@ runStore io stme action = do
             MkSettings
                 { maxFood = 5
                 , maxPlayers = 5
-                , queueMaxSize = 5
+                , queueMaxSize = 50
                 , boardSize = 40
                 , gameFrameTimeMs = 200
                 , useWebComponent = True

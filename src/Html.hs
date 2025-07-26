@@ -2,6 +2,7 @@ module Html where
 
 import Bluefin.Eff
 import Color (assignColor)
+import Control.Monad (unless)
 import Data.Aeson (KeyValue ((.=)))
 import Data.Aeson qualified as Aeson
 import Data.Aeson.Key qualified as Json
@@ -164,16 +165,17 @@ mainPage = pageHead do
             chatDisabled
         windowController_ [id_ "window-controller"] mempty
 
-renderFrame :: Html () -> Html () -> Html () -> Html ()
-renderFrame settings leaderboard board = div_ [id_ "frame-container", class_ "frame-container"] do
+renderFrame :: Bool -> Html () -> Html () -> Html () -> Html ()
+renderFrame isQueueFull settings leaderboard board = div_ [id_ "frame-container", class_ "frame-container"] do
     div_ [class_ "header"] do
         h1_ "Datasnek"
-        button_
-            [ id_ "play-button"
-            , class_ "play-button"
-            , dataOnMousedown_ JavaScript.postPlay
-            ]
-            "Play"
+        unless isQueueFull do
+            button_
+                [ id_ "play-button"
+                , class_ "play-button"
+                , dataOnMousedown_ JavaScript.postPlay
+                ]
+                "Play"
     div_ [id_ "game-area", class_ "game-area"] do
         leaderboard
         board
