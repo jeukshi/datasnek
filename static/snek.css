@@ -380,27 +380,25 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.05);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
   min-height: 0;
-  height: 100px;
+  height: auto;
 }
 
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-gap: 3px;
-  flex: 1;
-  height: 100%;
+  grid-template-columns: repeat(5, 1fr);
+  grid-gap: 4px;
+  width: 100%;
 }
 
 .setting-item {
   background-color: rgba(248, 249, 250, 0.7);
   border-radius: 3px;
-  padding: 2px 4px;
+  padding: 3px 4px;
   display: flex;
   justify-content: space-between;
   align-items: center;
   border: 1px solid rgba(0, 0, 0, 0.04);
-  height: 100%;
-  min-height: 0;
+  min-width: 0;
 }
 
 .setting-label {
@@ -410,6 +408,9 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  margin-right: 3px;
+  min-width: 0;
 }
 
 .setting-value {
@@ -419,7 +420,7 @@ body {
   border-radius: 2px;
   font-size: 9px;
   font-weight: bold;
-  min-width: 15px;
+  min-width: 18px;
   text-align: center;
   border: 1px solid rgba(0, 0, 0, 0.05);
   flex-shrink: 0;

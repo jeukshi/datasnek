@@ -215,11 +215,11 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                 calculateLeaderboard allTimeBestS currentBestS newGameState.aliveSneks
                 allTimeBest <- get allTimeBestS
                 currentBest <- get currentBestS
-
                 queueMaxSize <- (.queueMaxSize) <$> getSettings storeRead
                 settings <- getSettings storeRead
+                isQueueFull <- getIsQueueFull storeRead
                 let settingsHtml =
-                        Html.settings settings
+                        Html.settings isQueueFull (length newGameState.aliveSneks) settings
                 let leaderboardHtml = Html.leaderboard anonymousMode currentBest allTimeBest
                 let (event, frame) =
                         render
@@ -230,7 +230,6 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                             newGameState
                             newSneksDirections
                             renderWebComponent
-                -- FIXME name the thing
                 putSneks storeWrite newGameState.aliveSneks
                 putFoodPositions storeWrite newGameState.foodPositions
                 putGameFrame storeWrite frame

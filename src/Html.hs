@@ -73,18 +73,20 @@ renderMessage (user, message) = do
             (toHtml (user.name <> ": "))
         span_ [class_ "chat-content"] (toHtml message.text)
 
-settings :: Settings -> Html ()
-settings settings = div_ [id_ "settings", class_ "settings"] do
+settings :: Bool -> Int -> Settings -> Html ()
+settings queueFull alive settings = div_ [id_ "settings", class_ "settings"] do
     div_ [class_ "settings-grid"] do
-        settingItem ("maxFood:", T.pack . show $ settings.maxFood)
-        settingItem ("maxPlayers:", T.pack . show $ settings.maxPlayers)
-        settingItem ("queueMaxSize:", T.pack . show $ settings.queueMaxSize)
-        settingItem ("boardSize:", T.pack . show $ settings.boardSize)
-        settingItem ("gameFrameTimeMs:", T.pack . show $ settings.gameFrameTimeMs)
-        settingItem ("useWebComponent:", if settings.useWebComponent then "True" else "False")
-        settingItem ("anonymousMode:", if settings.anonymousMode then "True" else "False")
-        settingItem ("disableChat:", if settings.disableChat then "True" else "False")
-        settingItem ("maxBots:", T.pack . show $ settings.maxBots)
+        settingItem ("maxFood", T.pack . show $ settings.maxFood)
+        settingItem ("maxPlayers", T.pack . show $ settings.maxPlayers)
+        settingItem ("playing", T.pack . show $ alive)
+        settingItem ("queueMaxSize", T.pack . show $ settings.queueMaxSize)
+        settingItem ("boardSize", T.pack . show $ settings.boardSize)
+        settingItem ("gameFrameTimeMs", T.pack . show $ settings.gameFrameTimeMs)
+        settingItem ("useWebComponent", if settings.useWebComponent then "true" else "false")
+        settingItem ("anonymousMode", if settings.anonymousMode then "true" else "false")
+        settingItem ("disableChat", if settings.disableChat then "true" else "false")
+        settingItem ("queueFull", if queueFull then "true" else "false")
+        settingItem ("maxBots", T.pack . show $ settings.maxBots)
 
 settingItem :: (Text, Text) -> Html ()
 settingItem (label, value) =
