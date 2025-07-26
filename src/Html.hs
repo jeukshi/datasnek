@@ -167,7 +167,6 @@ mainPage = pageHead do
 renderFrame :: Html () -> Html () -> Html () -> Html ()
 renderFrame settings leaderboard board = div_ [id_ "frame-container", class_ "frame-container"] do
     div_ [class_ "header"] do
-        div_ [dataText_ "$chaton"] mempty
         h1_ "Datasnek"
         button_
             [ id_ "play-button"
