@@ -153,9 +153,9 @@ getPossibleMoves snek maxDim currentDir = do
                      in newC >= 0 && newC <= maxDim && newR >= 0 && newR <= maxDim
                 )
                 nonOppositeMoves
-    if null validMoves
-        then currentDir NonEmpty.:| []
-        else head validMoves NonEmpty.:| tail validMoves
+    case validMoves of
+        [] -> currentDir NonEmpty.:| []
+        (x : xs) -> x NonEmpty.:| xs
 
 getOppositeDirection :: Direction -> Direction
 getOppositeDirection U = D
@@ -179,9 +179,9 @@ makeFoodSeekingMove random foodPositions snek currentSnekDir possibleMoves = do
             let currentHead = snek.headOfSnek
             let movesTowardsFood =
                     NonEmpty.filter (movesBringCloserToFood currentHead closestFood) possibleMoves
-            if null movesTowardsFood
-                then randomFromList random possibleMoves
-                else randomFromList random (head movesTowardsFood NonEmpty.:| tail movesTowardsFood)
+            case movesTowardsFood of
+                [] -> randomFromList random possibleMoves
+                (x : xs) -> randomFromList random (x NonEmpty.:| xs)
 
 manhattanDistance :: (Int, Int) -> (Int, Int) -> Int
 manhattanDistance (x1, y1) (x2, y2) = abs (x1 - x2) + abs (y1 - y2)
