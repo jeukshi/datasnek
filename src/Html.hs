@@ -5,6 +5,7 @@ import Color (assignColor)
 import Control.Monad (unless)
 import Data.Aeson (KeyValue ((.=)))
 import Data.Aeson qualified as Aeson
+import Data.Aeson qualified as Json
 import Data.Aeson.Key qualified as Json
 import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (for_)
@@ -154,23 +155,27 @@ loginPage = pageHead do
 
 mainPage :: Html ()
 mainPage = pageHead do
-    main_ [class_ "container", dataSignals_ "username" "", dataSignals_ "isplaying" "false"] do
-        div_ [dataOnLoad_ JavaScript.hotreload] mempty
-        div_ [dataOnLoad_ JavaScript.getTransmittal] mempty
-        div_ [dataOnKeydown__window_ JavaScript.gameInput] mempty
-        div_ [class_ "main-container"] do
-            div_ [id_ "frame-container", class_ "frame-container"] do
-                div_ [class_ "header"] do
-                    h1_ "Datasnek"
-                    button_
-                        [ id_ "play-button"
-                        , class_ "play-button"
-                        , dataOnMousedown_ JavaScript.postPlay
-                        ]
-                        "Play"
-                div_ [id_ "game-area", class_ "game-area"] mempty
-            chatDisabled
-        windowController_ [id_ "window-controller"] mempty
+    main_
+        [ class_ "container"
+        , dataSignalsJson_
+            ( Json.object
+                [ "username" .= ("" :: Text)
+                , "isplaying" .= False
+                , "inqueue" .= False
+                ]
+            )
+        ]
+        do
+            div_ [dataOnLoad_ JavaScript.hotreload] mempty
+            div_ [dataOnLoad_ JavaScript.getTransmittal] mempty
+            div_ [dataOnKeydown__window_ JavaScript.gameInput] mempty
+            div_ [class_ "main-container"] do
+                div_ [id_ "frame-container", class_ "frame-container"] do
+                    div_ [class_ "header"] do
+                        h1_ "Datasnek"
+                    div_ [id_ "game-area", class_ "game-area"] mempty
+                chatDisabled
+            windowController_ [id_ "window-controller"] mempty
 
 renderFrame :: Bool -> Html () -> Html () -> Html () -> Html ()
 renderFrame isQueueFull settings leaderboard board = div_ [id_ "frame-container", class_ "frame-container"] do
@@ -181,6 +186,7 @@ renderFrame isQueueFull settings leaderboard board = div_ [id_ "frame-container"
                 [ id_ "play-button"
                 , class_ "play-button"
                 , dataOnMousedown_ JavaScript.postPlay
+                , dataAttr_ "disabled" "$inqueue"
                 ]
                 "Play"
     div_ [id_ "game-area", class_ "game-area"] do

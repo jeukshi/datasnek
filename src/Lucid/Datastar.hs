@@ -4,14 +4,20 @@
 
 module Lucid.Datastar where
 
+import Data.Aeson qualified as Json
 import Data.Text (Text)
+import Data.Text.Lazy qualified as TL
+import Data.Text.Lazy.Encoding qualified as TL
 import Lucid.Base (Attributes, makeAttributes)
 
 dataSignals_ :: Text -> Text -> Attributes
 dataSignals_ signalName = makeAttributes ("data-signals-" <> signalName)
 
-dataSignalsJson_ :: Text -> Attributes
-dataSignalsJson_ signalName = makeAttributes ("data-signals=" <> signalName) ""
+dataSignalsJson_ :: Json.Value -> Attributes
+dataSignalsJson_ json =
+    makeAttributes
+        "data-signals"
+        (TL.toStrict . TL.decodeUtf8 . Json.encode $ json)
 
 dataText_ :: Text -> Attributes
 dataText_ = makeAttributes "data-text"

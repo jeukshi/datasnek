@@ -126,6 +126,12 @@ instance ToSse RemoveComment where
     toSse _ = toSse do
         Datastar.patchSignals $ Json.object ["comment" .= ("" :: Text)]
 
+data SetInQueue = MkSetInQueue
+
+instance ToSse SetInQueue where
+    toSse _ = toSse do
+        Datastar.patchSignals $ Json.object ["inqueue" .= True]
+
 data HotReload = HotReload
     deriving (Show)
 
@@ -149,7 +155,9 @@ instance ToSse Transmittal where
         UpdateUsernameSignal username -> toSse do
             Datastar.patchSignals $ Json.object ["username" .= username]
         UpdateIsPlayingSignal isPlaying -> toSse do
-            Datastar.patchSignals $ Json.object ["isplaying" .= isPlaying]
+            Datastar.patchSignals $
+                Json.object
+                    ["isplaying" .= isPlaying, "inqueue" .= isPlaying]
 
 data RedirectMain = MkRedirectMain
 
@@ -181,7 +189,7 @@ data Routes es route = Routes
             :- "api"
                 :>> "play"
                 :>> Header "Cookie" User
-                :>> SsePost (SourceIO EmptyResponse)
+                :>> SsePost (SourceIO SetInQueue)
     , _chat
         :: route
             :- "api"
@@ -239,15 +247,15 @@ play
     => StoreRead e1
     -> BroadcastServer Command e2
     -> Maybe User
-    -> Eff es (SourceIO EmptyResponse)
+    -> Eff es (SourceIO SetInQueue)
 play storeRead broadcast = \case
     Just user -> do
         isQueueFull <- getIsQueueFull storeRead
         unless isQueueFull do
             writeBroadcast broadcast (PlayRequest user)
-        singleToSourceIO MkEmptyResponse
+        singleToSourceIO MkSetInQueue
     Nothing -> do
-        singleToSourceIO MkEmptyResponse
+        singleToSourceIO MkSetInQueue -- FIXME
 
 chat
     :: (e :> es) => BroadcastServer Command e -> Maybe User -> Message -> Eff es (SourceIO RemoveComment)
