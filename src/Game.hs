@@ -57,6 +57,7 @@ import WebComponents
 data NewPlayerStatus
     = NoNewPlayer
     | AlreadyInGame
+    | GameFull
     | AddedTemporarly User
 
 advanceState
@@ -72,9 +73,12 @@ advanceState gameState mbNewFood sneksDirectionsBefore = withStateSource \source
             let newSneks = newSnek : gameState.aliveSneks
             let newSneksDirections =
                     Map.insert newSnek.user.userId newSnekDirection sneksDirectionsBefore
-            if newSnek.user `elem` map (.user) gameState.aliveSneks
-                then pure (gameState.aliveSneks, sneksDirectionsBefore, AlreadyInGame)
-                else pure (newSneks, newSneksDirections, AddedTemporarly newSnek.user)
+            if length gameState.aliveSneks >= gameState.maxPlayers
+                then pure (gameState.aliveSneks, sneksDirectionsBefore, GameFull)
+                else
+                    if newSnek.user `elem` map (.user) gameState.aliveSneks
+                        then pure (gameState.aliveSneks, sneksDirectionsBefore, AlreadyInGame)
+                        else pure (newSneks, newSneksDirections, AddedTemporarly newSnek.user)
     -- Calculate new positions and eliminate some.
     movedSneks <-
         catMaybes <$> for aliveSneks \snek -> do
@@ -153,6 +157,7 @@ advanceState gameState mbNewFood sneksDirectionsBefore = withStateSource \source
                 , newPlayer = case newPlayerStatus of
                     NoNewPlayer -> Nothing
                     AlreadyInGame -> Nothing
+                    GameFull -> gameState.newPlayer
                     AddedTemporarly newUserId ->
                         if newUserId `elem` map (.user) newSneks
                             then Nothing -- They managed to get into the game.
