@@ -36,6 +36,7 @@ data Settings = MkSettings
     , anonymousMode :: Bool
     , disableChat :: Bool
     , maxBots :: Int
+    , gracePeriod :: Int
     }
 
 instance FromJSON Settings where
@@ -50,3 +51,4 @@ instance FromJSON Settings where
             <*> v .: "anonymousMode"
             <*> v .: "disableChat"
             <*> v .: "maxBots"
+            <*> v .: "gracePeriod"

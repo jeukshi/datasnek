@@ -88,6 +88,7 @@ settings queueFull alive settings = div_ [id_ "settings", class_ "settings"] do
         settingItem ("disableChat", if settings.disableChat then "true" else "false")
         settingItem ("queueFull", if queueFull then "true" else "false")
         settingItem ("maxBots", T.pack . show $ settings.maxBots)
+        settingItem ("gracePeriod", T.pack . show $ settings.gracePeriod)
 
 settingItem :: (Text, Text) -> Html ()
 settingItem (label, value) =
@@ -217,14 +218,21 @@ renderBoard anonymousMode renderForUser gameState = do
             [ div_ [class_ "board-container"] do
                 sequence_
                     [ case Map.lookup (c, r) snakeCells of
-                        (Just (user, color, isHead)) -> div_ [class_ (base <> " snake"), style_ ("background-color:" <> color)] do
-                            let username = if anonymousMode then "snek" else toHtml user.name
-                            if isHead
-                                then
-                                    if renderForUser.userId == user.userId
-                                        then div_ [class_ "nameplate-me"] username
-                                        else div_ [class_ "nameplate"] username
-                                else mempty
+                        (Just (user, color, isHead, gracePeriod)) -> do
+                            let opacity = calculateGracePeriodOpacity gracePeriod
+                            let opacityStyle =
+                                    if opacity < 1.0
+                                        then ";opacity:" <> T.pack (show opacity)
+                                        else ""
+                            let styleAttr = "background-color:" <> color <> opacityStyle
+                            div_ [class_ (base <> " snake"), style_ styleAttr] do
+                                let username = if anonymousMode then "snek" else toHtml user.name
+                                if isHead
+                                    then
+                                        if renderForUser.userId == user.userId
+                                            then div_ [class_ "nameplate-me"] username
+                                            else div_ [class_ "nameplate"] username
+                                    else mempty
                         Nothing -> do
                             let cls =
                                     if (c, r) `elem` gameState.foodPositions
@@ -236,26 +244,37 @@ renderBoard anonymousMode renderForUser gameState = do
             | r <- [0 .. gameState.boardSize]
             ]
   where
-    snakeCells :: Map (Int, Int) (User, Text, Bool)
+    calculateGracePeriodOpacity :: Int -> Double
+    calculateGracePeriodOpacity gracePeriod
+        | gracePeriod <= 0 = 1.0
+        | gracePeriod >= 5 = 0.5
+        | otherwise = 0.5 + (0.1 * fromIntegral (5 - gracePeriod))
+    snakeCells :: Map (Int, Int) (User, Text, Bool, Int)
     snakeCells =
         Map.fromList $
-            [(coord, (s.user, s.color, False)) | s <- gameState.aliveSneks, coord <- s.restOfSnek]
+            [ (coord, (s.user, s.color, False, s.gracePeriod))
+            | s <- gameState.aliveSneks
+            , coord <- s.restOfSnek
+            ]
                 -- It is important that heads go last into the list.
                 -- That way head will be always in the map,
                 -- so we can display nameplate properly.
-                ++ [(s.headOfSnek, (s.user, s.color, True)) | s <- gameState.aliveSneks]
+                ++ [ (s.headOfSnek, (s.user, s.color, True, s.gracePeriod))
+                   | s <- gameState.aliveSneks
+                   ]
     base = "board-item"
 
 encodeToText :: Aeson.Value -> Text
 encodeToText = T.decodeUtf8 . BL.toStrict . Aeson.encode
 
 snekToObject :: Snek -> Aeson.Value
-snekToObject (MkSnek (MkUser name userId) color (hx, hy) rest) =
+snekToObject (MkSnek (MkUser name userId) color (hx, hy) rest gracePeriod) =
     Aeson.object
-        [ "username" Aeson..= Aeson.String name
-        , "color" Aeson..= Aeson.String color
-        , "headOfSnek" Aeson..= Aeson.toJSON (hx, hy)
-        , "restOfSnek" Aeson..= Aeson.toJSON rest
+        [ "username" .= Aeson.String name
+        , "color" .= Aeson.String color
+        , "headOfSnek" .= Aeson.toJSON (hx, hy)
+        , "restOfSnek" .= Aeson.toJSON rest
+        , "gracePeriod" .= Aeson.toJSON gracePeriod
         ]
 
 toText :: (Show a) => a -> Text

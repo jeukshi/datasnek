@@ -57,6 +57,24 @@ class SnekGameBoard extends HTMLElement {
     return normalizedCurrent === normalizedUserName;
   }
 
+  // Helper method to calculate opacity based on grace period
+  calculateGracePeriodOpacity(gracePeriod) {
+    if (gracePeriod <= 0) {
+      return 1.0; // Full opacity when not in grace period
+    }
+
+    if (gracePeriod >= 5) {
+      return 0.5; // 50% opacity for grace period >= 5
+    }
+
+    // Gradually increase opacity in the last 5 ticks
+    // gracePeriod 1 -> 0.9 opacity
+    // gracePeriod 2 -> 0.8 opacity
+    // gracePeriod 3 -> 0.7 opacity
+    // gracePeriod 4 -> 0.6 opacity
+    return 0.5 + (0.1 * (5 - gracePeriod));
+  }
+
   // Build the entire board structure (only when board size changes)
   buildBoard() {
     // Clear existing content
@@ -133,20 +151,21 @@ class SnekGameBoard extends HTMLElement {
 
     // Process all sneks to get their positions and metadata
     sneks.forEach(snek => {
-      const { color, headOfSnek, restOfSnek } = snek;
+      const { color, headOfSnek, restOfSnek, gracePeriod = 0 } = snek;
       const userName = snek.user || snek.username || snek.name;
+      const opacity = this.calculateGracePeriodOpacity(gracePeriod);
 
-      // Store head position with metadata
+      // Store head position with metadata including grace period info
       if (headOfSnek) {
         const headKey = `${headOfSnek[0]},${headOfSnek[1]}`;
-        currentHeadPositions.set(headKey, { color, userName });
+        currentHeadPositions.set(headKey, { color, userName, opacity });
       }
 
-      // Store body positions with color
+      // Store body positions with color and opacity
       if (restOfSnek) {
         restOfSnek.forEach(([x, y]) => {
           const posKey = `${x},${y}`;
-          currentSnekPositions.set(posKey, color);
+          currentSnekPositions.set(posKey, { color, opacity });
         });
       }
     });
@@ -157,18 +176,19 @@ class SnekGameBoard extends HTMLElement {
     const prevHeadPositions = new Map();
 
     this.prevSneks.forEach(snek => {
-      const { color, headOfSnek, restOfSnek } = snek;
+      const { color, headOfSnek, restOfSnek, gracePeriod = 0 } = snek;
       const userName = snek.user || snek.username || snek.name;
+      const opacity = this.calculateGracePeriodOpacity(gracePeriod);
 
       if (headOfSnek) {
         const headKey = `${headOfSnek[0]},${headOfSnek[1]}`;
-        prevHeadPositions.set(headKey, { color, userName });
+        prevHeadPositions.set(headKey, { color, userName, opacity });
       }
 
       if (restOfSnek) {
         restOfSnek.forEach(([x, y]) => {
           const posKey = `${x},${y}`;
-          prevSnekPositions.set(posKey, color);
+          prevSnekPositions.set(posKey, { color, opacity });
         });
       }
     });
@@ -197,6 +217,7 @@ class SnekGameBoard extends HTMLElement {
         if (!currentSnekPositions.has(posKey)) {
           cell.classList.remove('snake');
           cell.style.backgroundColor = '';
+          cell.style.opacity = ''; // Reset opacity
         }
       }
     }
@@ -207,6 +228,7 @@ class SnekGameBoard extends HTMLElement {
         const cell = this.cellsMap.get(posKey);
         cell.classList.remove('snake');
         cell.style.backgroundColor = '';
+        cell.style.opacity = ''; // Reset opacity
       }
     }
 
@@ -226,24 +248,28 @@ class SnekGameBoard extends HTMLElement {
       }
     }
 
-    // 3. Add new snake body positions
-    for (const [posKey, color] of currentSnekPositions) {
+    // 3. Add new snake body positions with grace period transparency
+    for (const [posKey, snekData] of currentSnekPositions) {
       if (this.cellsMap.has(posKey)) {
         const cell = this.cellsMap.get(posKey);
+        const { color, opacity } = snekData;
+
         cell.classList.add('snake');
         cell.style.backgroundColor = color;
+        cell.style.opacity = opacity.toString();
       }
     }
 
-    // 4. Add new snake head positions with nameplates
+    // 4. Add new snake head positions with nameplates and grace period transparency
     for (const [posKey, metadata] of currentHeadPositions) {
       if (this.cellsMap.has(posKey)) {
         const cell = this.cellsMap.get(posKey);
-        const { color, userName } = metadata;
+        const { color, userName, opacity } = metadata;
 
-        // Add snake styling
+        // Add snake styling with transparency
         cell.classList.add('snake');
         cell.style.backgroundColor = color;
+        cell.style.opacity = opacity.toString();
 
         // Create nameplate if we have a user name
         if (userName) {

@@ -13,6 +13,7 @@ data Snek = MkSnek
     , color :: Text
     , headOfSnek :: (Int, Int)
     , restOfSnek :: [(Int, Int)]
+    , gracePeriod :: Int
     }
     deriving (Show, Eq)
 

@@ -109,18 +109,31 @@ advanceState gameState mbNewFood sneksDirectionsBefore = withStateSource \source
                         then do
                             modify murderList (snek.user.userId :) -- :)
                             pure Nothing
-                        else pure $ Just $ MkSnek snek.user snek.color newHeadOfSnek newRestOfSnek
+                        else
+                            pure $
+                                Just $
+                                    MkSnek
+                                        snek.user
+                                        snek.color
+                                        newHeadOfSnek
+                                        newRestOfSnek
+                                        (max 0 (snek.gracePeriod - 1))
     -- Eliminate some more.
     allHeads <- for movedSneks \snek -> do
-        pure (snek.user.userId, snek.headOfSnek)
+        pure (snek.user.userId, snek.headOfSnek, snek.gracePeriod)
     allTaken <-
         concat <$> for movedSneks \snek -> do
-            pure $ map (\x -> (snek.user.userId, x)) (snek.headOfSnek : snek.restOfSnek)
-    for_ allTaken \(someUserId, taken) -> do
+            pure $ map (\x -> (snek.user.userId, x, snek.gracePeriod)) (snek.headOfSnek : snek.restOfSnek)
+    for_ allTaken \(someUserId, taken, someGracePeriod) -> do
         let killCandidates =
-                map fst
+                map (\(otherUserId, _, _) -> otherUserId)
                     . filter
-                        (\(otherUserId, otherHead) -> someUserId /= otherUserId && taken == otherHead)
+                        ( \(otherUserId, otherHead, otherGracePeriod) ->
+                            someUserId /= otherUserId
+                                && taken == otherHead
+                                && otherGracePeriod == 0
+                                && someGracePeriod == 0
+                        )
                     $ allHeads
         for_ killCandidates \poorThing -> do
             modify murderList (poorThing :) -- :)
@@ -197,10 +210,11 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                 maxFood <- (.maxFood) <$> getSettings storeRead
                 maybeNewFood <- maybeSpawnFood random boardSize (Set.size foodPositions) maxFood
                 maxPlayers <- (.maxPlayers) <$> getSettings storeRead
+                gracePeriod <- (.gracePeriod) <$> getSettings storeRead
                 mbNewPlayer <-
                     getNewPlayer storeRead >>= \case
                         Nothing -> pure Nothing
-                        Just user -> Just <$> randomSnekAndDirection random user boardSize
+                        Just user -> Just <$> randomSnekAndDirection random gracePeriod user boardSize
                 gameState <-
                     MkGameState boardSize foodPositions
                         <$> getSneks storeRead
@@ -306,10 +320,11 @@ renderBoardToRawEvent frameHtml =
 randomSnekAndDirection
     :: (e :> es)
     => Random e
+    -> Int
     -> User
     -> Int
     -> Eff es (Snek, SnekDirection)
-randomSnekAndDirection random user maxSize = do
+randomSnekAndDirection random gracePeriod user maxSize = do
     let dirOffsets =
             (U, (0, -1))
                 NonEmpty.:| [ (D, (0, 1))
@@ -329,6 +344,7 @@ randomSnekAndDirection random user maxSize = do
                 , color = assignColor (userIdToText user.userId)
                 , headOfSnek = headPos
                 , restOfSnek = [tailPos]
+                , gracePeriod = gracePeriod
                 }
     let snekDir =
             MkSnekDirection

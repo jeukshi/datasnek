@@ -130,7 +130,7 @@ runStore io stme action = do
         newIORef
             MkSettings
                 { maxFood = 5
-                , maxPlayers = 5
+                , maxPlayers = 50
                 , queueMaxSize = 50
                 , boardSize = 40
                 , gameFrameTimeMs = 200
@@ -138,6 +138,7 @@ runStore io stme action = do
                 , anonymousMode = True
                 , disableChat = True
                 , maxBots = 40
+                , gracePeriod = 10
                 }
     foodPositions <- effIO io do newIORef Set.empty
     isQueueFull <- effIO io do newIORef False
