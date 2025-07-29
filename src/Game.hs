@@ -36,6 +36,7 @@ import Data.Text.Encoding qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Lazy.Encoding qualified as TL
 import Data.Traversable (for)
+import Datastar qualified
 import GameState
 import Html qualified
 import Lucid hiding (for_)
@@ -289,7 +290,7 @@ render
 render settingsHtml leaderboardHtml isQueueFull anonymousMode gameState sneksDirections = \cases
     False -> do
         let gameFrame =
-                renderBoardToRawEvent
+                Datastar.patchElements
                     . Html.renderFrame isQueueFull settingsHtml leaderboardHtml
                     $ Html.renderBoard
                         anonymousMode
@@ -301,7 +302,7 @@ render settingsHtml leaderboardHtml isQueueFull anonymousMode gameState sneksDir
                     . map
                         ( \snek ->
                             ( snek.user.userId
-                            , renderBoardToRawEvent
+                            , Datastar.patchElements
                                 . Html.renderFrame isQueueFull settingsHtml leaderboardHtml
                                 $ Html.renderBoard
                                     anonymousMode
@@ -315,16 +316,8 @@ render settingsHtml leaderboardHtml isQueueFull anonymousMode gameState sneksDir
         let webComponent =
                 Html.renderFrame isQueueFull settingsHtml leaderboardHtml $
                     Html.renderBoardWebComponent anonymousMode gameState
-        let rawEvent = renderWebComponentToRawEvent webComponent
+        let rawEvent = Datastar.patchElements webComponent
         (WebComponentUpdate rawEvent sneksDirections, rawEvent)
-
-renderBoardToRawEvent :: Html () -> RawEvent
-renderBoardToRawEvent frameHtml =
-    MkRawEvent $
-        "event:datastar-patch-elements\n"
-            <> "data:elements "
-            <> renderBS frameHtml
-            <> "\n"
 
 randomSnekAndDirection
     :: (e :> es)
@@ -361,14 +354,6 @@ randomSnekAndDirection random gracePeriod user maxSize = do
                 , new = Nothing
                 }
     pure (snek, snekDir)
-
-renderWebComponentToRawEvent :: Html () -> RawEvent
-renderWebComponentToRawEvent html =
-    MkRawEvent $
-        "event:datastar-patch-elements\n"
-            <> "data:elements "
-            <> renderBS html
-            <> "\n"
 
 updateScoreboard :: Int -> Sneks -> Sneks -> Maybe Sneks
 updateScoreboard maxEntries currentSneks newSneks = do
@@ -408,11 +393,3 @@ calculateLeaderboard allTimeBestS currentBestS sneks = do
     let newCurrentBest = fromMaybe currentBestAlive mbCurrentBestS
     put allTimeBestS newAllTimeBest
     put currentBestS newCurrentBest
-
-leaderboardToRawEvent :: Html () -> RawEvent
-leaderboardToRawEvent html =
-    MkRawEvent $
-        "event:datastar-patch-elements\n"
-            <> "data:elements "
-            <> renderBS html
-            <> "\n"

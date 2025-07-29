@@ -14,6 +14,7 @@ import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (for_)
 import Data.Functor.Identity (Identity)
 import Data.Text (Text)
+import Datastar qualified
 import Html qualified
 import Lucid hiding (for_)
 import Message
@@ -41,8 +42,11 @@ run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
             -- CSS will reverse our list.
             let newMessages = take 20 (newMessage : oldMessages)
             chatHtml <- Html.chatMessages newMessages
-            let rawEvent = renderChatToRawEvent chatHtml
-            let rawMessageEvent = renderMessageToRawEvent newMessage
+            let rawEvent = Datastar.patchElements chatHtml
+            let rawMessageEvent =
+                    Datastar.patchElementsPrepend
+                        "#chat-messages"
+                        (Html.renderMessage newMessage)
             putChatMessages storeWrite newMessages
             putChatContentHtml storeWrite chatHtml
             putChatContent storeWrite rawEvent
@@ -50,27 +54,9 @@ run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
             writeBroadcast broadcastServer (ChatNewMessage rawMessageEvent)
         True -> do
             chatHtml <- Html.chatMessages []
-            let rawEvent = renderChatToRawEvent chatHtml
+            let rawEvent = Datastar.patchElements chatHtml
             putChatContent storeWrite rawEvent
             putChatContentHtml storeWrite chatHtml
             putChatMessages storeWrite []
             _ <- tryWriteQueue mainPageQueue ()
             writeBroadcast broadcastServer (ChatFrameUpdate rawEvent)
-
-renderChatToRawEvent :: Html () -> RawEvent
-renderChatToRawEvent chatHtml =
-    MkRawEvent $
-        "event:datastar-patch-elements\n"
-            <> "data:elements "
-            <> renderBS chatHtml
-            <> "\n"
-
-renderMessageToRawEvent :: (User, Message) -> RawEvent
-renderMessageToRawEvent messages =
-    MkRawEvent $
-        "event:datastar-patch-elements\n"
-            <> "data: selector #chat-messages\n"
-            <> "data: mode prepend\n"
-            <> "data:elements "
-            <> renderBS (Html.renderMessage messages)
-            <> "\n"

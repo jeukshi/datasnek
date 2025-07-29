@@ -314,12 +314,19 @@ transmittal
     :: (e1 :> es, e2 :> es)
     => StoreChatRead e1
     -> BroadcastClient StoreUpdate e2
+    -> Env
     -> Maybe User
     -> Eff es (SourceIO Transmittal)
-transmittal store gameStateBroadcast = \case
+transmittal store gameStateBroadcast env = \case
     Just user -> streamToSourceIO \out -> do
         evalState False \isPlayingS -> do
             yield out $ UpdateUsernameSignal user.name
+            when (env == Dev) do
+                let hotReloadEvent =
+                        Datastar.patchElementsPrepend
+                            "#container"
+                            (div_ [dataOnLoad_ JavaScript.hotreload] mempty)
+                yield out $ TransmittalRaw hotReloadEvent
             maybeChatEnabled store >>= \case
                 Nothing -> pure ()
                 -- There is a race condition here. Before reading any state,
@@ -490,7 +497,11 @@ run env = runEff \io -> do
                                                                 Routes
                                                                     { _page = page storeRead
                                                                     , _loginPage = loginPage storeRead
-                                                                    , _transmittal = transmittal storeChatRead broadcastGameStateClient
+                                                                    , _transmittal =
+                                                                        transmittal
+                                                                            storeChatRead
+                                                                            broadcastGameStateClient
+                                                                            env
                                                                     , _hotreload = hotreload once
                                                                     , _play = play storeRead broadcastCommandServer
                                                                     , _chat = chat broadcastCommandServer

@@ -13,6 +13,7 @@ import Servant.API (Accept (contentTypes), MimeRender (..))
 import Servant.HtmlRaw (HtmlRaw)
 
 data Env = Prod | Dev
+    deriving (Eq)
 
 newtype RenderedHtml where
     MkRenderedHtml :: {unRenderedHtml :: BL.ByteString} -> RenderedHtml

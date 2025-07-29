@@ -160,7 +160,8 @@ loginPage = pageHead do
 mainPage :: Html ()
 mainPage = pageHead do
     main_
-        [ class_ "container"
+        [ id_ "container"
+        , class_ "container"
         , dataSignalsJson_
             ( Json.object
                 [ "username" .= ("" :: Text)
@@ -170,7 +171,6 @@ mainPage = pageHead do
             )
         ]
         do
-            div_ [dataOnLoad_ JavaScript.hotreload] mempty
             div_ [dataOnLoad_ JavaScript.getTransmittal] mempty
             div_ [dataOnKeydown__window_ JavaScript.gameInput] mempty
             div_ [class_ "main-container"] do
