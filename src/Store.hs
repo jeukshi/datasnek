@@ -139,6 +139,8 @@ runStore io stme action = do
                 , disableChat = True
                 , maxBots = 40
                 , gracePeriod = 10
+                , snekSelfOwn = False
+                , snekCanReverse = True
                 }
     foodPositions <- effIO io do newIORef Set.empty
     isQueueFull <- effIO io do newIORef False

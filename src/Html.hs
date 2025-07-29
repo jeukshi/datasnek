@@ -89,6 +89,8 @@ settings queueFull alive settings = div_ [id_ "settings", class_ "settings"] do
         settingItem ("queueFull", if queueFull then "true" else "false")
         settingItem ("maxBots", T.pack . show $ settings.maxBots)
         settingItem ("gracePeriod", T.pack . show $ settings.gracePeriod)
+        settingItem ("snekSelfOwn", if settings.snekSelfOwn then "true" else "false")
+        settingItem ("snekCanReverse", if settings.snekCanReverse then "true" else "false")
 
 settingItem :: (Text, Text) -> Html ()
 settingItem (label, value) =

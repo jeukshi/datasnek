@@ -122,14 +122,18 @@ advanceState gameState mbNewFood sneksDirectionsBefore = withStateSource \source
     allHeads <- for movedSneks \snek -> do
         pure (snek.user.userId, snek.headOfSnek, snek.gracePeriod)
     allTaken <-
-        concat <$> for movedSneks \snek -> do
-            pure $ map (\x -> (snek.user.userId, x, snek.gracePeriod)) (snek.headOfSnek : snek.restOfSnek)
-    for_ allTaken \(someUserId, taken, someGracePeriod) -> do
+        concat <$> for movedSneks \snek ->
+            pure $
+                (snek.user.userId, True, snek.headOfSnek, snek.gracePeriod)
+                    : map (\x -> (snek.user.userId, False, x, snek.gracePeriod)) snek.restOfSnek
+    for_ allTaken \(someUserId, someIsHead, taken, someGracePeriod) -> do
         let killCandidates =
                 map (\(otherUserId, _, _) -> otherUserId)
                     . filter
                         ( \(otherUserId, otherHead, otherGracePeriod) ->
-                            someUserId /= otherUserId
+                            ( someUserId /= otherUserId
+                                || (gameState.snekSelfOwn && not someIsHead && someUserId == otherUserId)
+                            )
                                 && taken == otherHead
                                 && otherGracePeriod == 0
                                 && someGracePeriod == 0
@@ -220,6 +224,7 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                         <$> getSneks storeRead
                         <*> pure mbNewPlayer
                         <*> pure maxPlayers
+                        <*> ((.snekSelfOwn) <$> getSettings storeRead)
                 (newSneksDirections, newGameState) <-
                     -- This way we won't lose move commands.
                     atomicModifySnekDirection storeWrite (advanceState gameState maybeNewFood)

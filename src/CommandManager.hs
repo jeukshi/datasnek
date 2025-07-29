@@ -42,6 +42,7 @@ import Servant (FromHttpApiData (..))
 import Snek
 import Store
 import StoreUpdate
+import Types (Settings (snekCanReverse))
 import Unsafe.Coerce (unsafeCoerce)
 import User
 
@@ -59,11 +60,16 @@ run
 run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient broadcastGameStateServer =
     forEach (likeAndSubscribe broadcastCommandClient) \case
         ChangeDirection userId newDirection -> do
+            snekCanReverse <- (.snekCanReverse) <$> getSettings storeRead
             snd <$> atomicModifySnekDirection storeWrite \sneks -> do
                 -- TODO allowed directions
                 let newSneks =
                         Map.adjust
-                            (\sd -> MkSnekDirection sd.current (Just newDirection))
+                            ( \sd ->
+                                MkSnekDirection
+                                    sd.current
+                                    (pickNewDirection snekCanReverse newDirection sd.current sd.new)
+                            )
                             userId
                             sneks
                 pure (newSneks, ())
@@ -79,3 +85,12 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                 localChatQueue <- accessConcurrently acc chatQueue
                 writeQueue localChatQueue (user, message)
             pure ()
+  where
+    pickNewDirection :: Bool -> Direction -> Direction -> Maybe Direction -> Maybe Direction
+    pickNewDirection = \cases
+        True newDirection _ _ -> Just newDirection
+        False U D currNewDirection -> currNewDirection
+        False D U currNewDirection -> currNewDirection
+        False L R currNewDirection -> currNewDirection
+        False R L currNewDirection -> currNewDirection
+        False newDirection _ _ -> Just newDirection

@@ -9,5 +9,6 @@ data GameState = MkGameState
     , aliveSneks :: Sneks
     , newPlayer :: Maybe (Snek, SnekDirection)
     , maxPlayers :: Int
+    , snekSelfOwn :: Bool
     }
     deriving (Show)

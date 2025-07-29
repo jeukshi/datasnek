@@ -7,6 +7,8 @@
   "useWebComponent": false,
   "anonymousMode": false,
   "disableChat": false,
-  "maxBots": 30,
-  "gracePeriod": 10
+  "maxBots": 10,
+  "gracePeriod": 10,
+  "snekSelfOwn": true,
+  "snekCanReverse": false
 }

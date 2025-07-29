@@ -37,6 +37,8 @@ data Settings = MkSettings
     , disableChat :: Bool
     , maxBots :: Int
     , gracePeriod :: Int
+    , snekSelfOwn :: Bool
+    , snekCanReverse :: Bool
     }
 
 instance FromJSON Settings where
@@ -52,3 +54,5 @@ instance FromJSON Settings where
             <*> v .: "disableChat"
             <*> v .: "maxBots"
             <*> v .: "gracePeriod"
+            <*> v .: "snekSelfOwn"
+            <*> v .: "snekCanReverse"
