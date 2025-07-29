@@ -74,12 +74,13 @@ renderMessage (user, message) = do
             (toHtml (user.name <> ": "))
         span_ [class_ "chat-content"] (toHtml message.text)
 
-settings :: Bool -> Int -> Settings -> Html ()
-settings queueFull alive settings = div_ [id_ "settings", class_ "settings"] do
+settings :: Int -> Bool -> Int -> Settings -> Html ()
+settings foodOnBoard queueFull aliveSneks settings = div_ [id_ "settings", class_ "settings"] do
     div_ [class_ "settings-grid"] do
         settingItem ("maxFood", T.pack . show $ settings.maxFood)
+        settingItem ("foodOnBoard", T.pack . show $ foodOnBoard)
         settingItem ("maxPlayers", T.pack . show $ settings.maxPlayers)
-        settingItem ("playing", T.pack . show $ alive)
+        settingItem ("aliveSneks", T.pack . show $ aliveSneks)
         settingItem ("queueMaxSize", T.pack . show $ settings.queueMaxSize)
         settingItem ("boardSize", T.pack . show $ settings.boardSize)
         settingItem ("gameFrameTimeMs", T.pack . show $ settings.gameFrameTimeMs)

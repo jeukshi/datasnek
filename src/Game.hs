@@ -243,7 +243,11 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                 settings <- getSettings storeRead
                 isQueueFull <- getIsQueueFull storeRead
                 let settingsHtml =
-                        Html.settings isQueueFull (length newGameState.aliveSneks) settings
+                        Html.settings
+                            (length newGameState.foodPositions)
+                            isQueueFull
+                            (length newGameState.aliveSneks)
+                            settings
                 let leaderboardHtml = Html.leaderboard anonymousMode currentBest allTimeBest
                 let (event, frame) =
                         render
