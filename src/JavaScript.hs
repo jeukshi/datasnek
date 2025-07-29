@@ -19,7 +19,7 @@ login :: Text
 login = "@get('/api/login', {contentType: 'form'})"
 
 getTransmittal :: Text
-getTransmittal = "@get('/api/transmittal');"
+getTransmittal = "@get('/api/transmittal', {openWhenHidden: true});"
 
 postPlay :: Text
 postPlay = "@post('/api/play')"
