@@ -12,6 +12,8 @@ import Network.HTTP.Media ((//), (/:))
 import Servant.API (Accept (contentTypes), MimeRender (..))
 import Servant.HtmlRaw (HtmlRaw)
 
+data Env = Prod | Dev
+
 newtype RenderedHtml where
     MkRenderedHtml :: {unRenderedHtml :: BL.ByteString} -> RenderedHtml
 

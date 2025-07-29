@@ -23,7 +23,7 @@ web:
     ghcid --warnings --test Main.main --command "cabal repl --enable-multi-repl exe:datasnek lib:datasnek"
 
 send-settings:
-	curl -X POST http://localhost:3000/api/settings \
-	     -H "Content-Type: application/json" \
-	     -H "Cookie: datasnek-name=testuser; datasnek-id=abc123" \
-	     --data @settings.json
+    curl -X POST http://localhost:3000/api/settings \
+         -u admin:admin1 \
+         -H "Content-Type: application/json" \
+         --data @settings.json

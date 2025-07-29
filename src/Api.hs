@@ -46,6 +46,8 @@ import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
+import Data.UUID.V4 (nextRandom)
+import Data.UUID.V4 qualified as UUID
 import Datastar qualified
 import Favicon (Png)
 import Favicon qualified
@@ -67,7 +69,11 @@ import Random (runRandom)
 import RawSse
 import Servant (
     Application,
+    BasicAuth,
+    BasicAuthData (..),
+    BasicAuthResult (..),
     Capture,
+    Context (..),
     Delete,
     FormUrlEncoded,
     GenericMode (type (:-)),
@@ -82,13 +88,16 @@ import Servant (
     SourceIO,
     addHeader,
     noHeader,
+    serveWithContext,
+    serveWithContextT,
  )
 import Servant qualified
 import Servant.API (Header, JSON, StdMethod (..), UVerb, WithStatus)
 import Servant.API.ContentTypes.Lucid (HTML)
 import Servant.API.Stream (SourceToSourceIO (..))
 import Servant.HtmlRaw
-import Servant.Server.Generic (AsServerT, genericServeT)
+import Servant.Server (BasicAuthCheck (..))
+import Servant.Server.Generic (AsServerT, genericServeT, genericServeTWithContext)
 import Servant.Types.SourceT (SourceT)
 import Servant.Types.SourceT qualified as S
 import Sleep
@@ -210,7 +219,7 @@ data Routes es route = Routes
         route
             :- "api"
                 :>> "settings"
-                :>> Header "Cookie" User
+                :>> BasicAuth "you shall not pass" ()
                 :>> ReqBody '[JSON] Settings
                 :>> SsePost (SourceIO EmptyResponse)
     , _css :: route :- "snek.css" :>> Get '[CSS] BS.ByteString
@@ -273,26 +282,22 @@ settings
     -> BroadcastServer StoreUpdate e3
     -> Queue (User, Message) e4
     -> Queue () e5
-    -> Maybe User
+    -> ()
     -> Settings
     -> Eff es (SourceIO EmptyResponse)
-settings storeWrite storeRead broadcast chatQueue mainPageQueue = \cases
-    -- FIXME auth
-    (Just user) newSettings -> do
-        oldDisableChat <- (.disableChat) <$> getSettings storeRead
-        putSettings storeWrite newSettings
-        case (oldDisableChat, newSettings.disableChat) of
-            (True, False) -> do
-                enableChatEvent <- getChatEnabled storeRead
-                writeBroadcast broadcast (ChatEnable enableChatEvent)
-            (False, True) -> do
-                disableChatEvent <- getChatDisabled storeRead
-                writeBroadcast broadcast (ChatDisable disableChatEvent)
-            _ -> pure ()
-        _ <- tryWriteQueue mainPageQueue ()
-        singleToSourceIO MkEmptyResponse
-    Nothing _ -> do
-        singleToSourceIO MkEmptyResponse
+settings storeWrite storeRead broadcast chatQueue mainPageQueue _ newSettings = do
+    oldDisableChat <- (.disableChat) <$> getSettings storeRead
+    putSettings storeWrite newSettings
+    case (oldDisableChat, newSettings.disableChat) of
+        (True, False) -> do
+            enableChatEvent <- getChatEnabled storeRead
+            writeBroadcast broadcast (ChatEnable enableChatEvent)
+        (False, True) -> do
+            disableChatEvent <- getChatDisabled storeRead
+            writeBroadcast broadcast (ChatDisable disableChatEvent)
+        _ -> pure ()
+    _ <- tryWriteQueue mainPageQueue ()
+    singleToSourceIO MkEmptyResponse
 
 changeDirection
     :: (e :> es) => BroadcastServer Command e -> Direction -> Maybe User -> Eff es (SourceIO EmptyResponse)
@@ -365,8 +370,21 @@ page = getMainPage
 nt :: forall es a e. (e :> es) => IOE e -> Proxy es -> Eff es a -> Handler a
 nt _ _ = liftIO . Bluefin.Internal.unsafeUnEff
 
-run :: IO ()
-run = runEff \io -> do
+ctx :: ByteString -> Context (BasicAuthCheck () ': '[])
+ctx serverPassword = authCheck serverPassword :. EmptyContext
+
+authCheck :: ByteString -> BasicAuthCheck ()
+authCheck serverPassword = BasicAuthCheck $ \(BasicAuthData username password) -> do
+    if username == "admin" && password == serverPassword
+        then return (Authorized ())
+        else return Unauthorized
+
+run :: Env -> IO ()
+run env = runEff \io -> do
+    adminPassword <- case env of
+        Prod -> UUID.toASCIIBytes <$> effIO io do UUID.nextRandom
+        Dev -> pure "admin1"
+    effIO io do print adminPassword
     -- Bluefin pyramid of doom.
     BC.runSTM io \stme -> do
         runStore io stme \storeReadMain storeWriteMain storeChatReadMain -> do
@@ -468,7 +486,7 @@ run = runEff \io -> do
                                                     mainPageQueue <- accessConcurrently acc mainPageQueueMain
                                                     runOnce ioLocal \once -> do
                                                         effEnvProxy <- captureEffEnv
-                                                        let record =
+                                                        let routes =
                                                                 Routes
                                                                     { _page = page storeRead
                                                                     , _loginPage = loginPage storeRead
@@ -490,6 +508,6 @@ run = runEff \io -> do
                                                                             chatQueue
                                                                             mainPageQueue
                                                                     }
-                                                        let app :: Application = genericServeT (nt ioLocal effEnvProxy) record
+                                                        let app :: Application = genericServeTWithContext (nt ioLocal effEnvProxy) routes (ctx adminPassword)
                                                         effIO ioLocal do Warp.run 3000 app
                                                 BC.awaitEff warpThread
