@@ -29,7 +29,7 @@ hotreload = "@get('/dev/hotreload');"
 
 gameInput :: Text
 gameInput =
-    "$isplaying === true && evt.key ==='ArrowLeft' && @post('/api/game/change-direction/l');"
-        <> "$isplaying === true && evt.key ==='ArrowRight' && @post('/api/game/change-direction/r');"
-        <> "$isplaying === true && evt.key ==='ArrowUp' && @post('/api/game/change-direction/u');"
-        <> "$isplaying === true && evt.key ==='ArrowDown' && @post('/api/game/change-direction/d');"
+    "$isplaying === true && ['ArrowLeft', 'a', 'h'].includes(evt.key) && @post('/api/game/change-direction/l');"
+        <> "$isplaying === true && ['ArrowRight', 'd', 'l'].includes(evt.key) && @post('/api/game/change-direction/r');"
+        <> "$isplaying === true && ['ArrowUp', 'w', 'k'].includes(evt.key) && @post('/api/game/change-direction/u');"
+        <> "$isplaying === true && ['ArrowDown', 's', 'j'].includes(evt.key) && @post('/api/game/change-direction/d');"
