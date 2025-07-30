@@ -37,22 +37,10 @@ run
 run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
     newMessage <- readQueue queue
     oldMessages <- getChatMessages storeRead
-    (.disableChat) <$> getSettings storeRead >>= \case
-        False -> do
-            -- CSS will reverse our list.
-            let newMessages = take 20 (newMessage : oldMessages)
-            chatHtml <- Html.chatMessages newMessages
-            let rawEvent = Datastar.patchElements chatHtml
-            let rawMessageEvent =
-                    Datastar.patchElementsPrepend
-                        "#chat-messages"
-                        (Html.renderMessage newMessage)
-            putChatMessages storeWrite newMessages
-            putChatContentHtml storeWrite chatHtml
-            putChatContent storeWrite rawEvent
-            _ <- tryWriteQueue mainPageQueue ()
-            writeBroadcast broadcastServer (ChatNewMessage rawMessageEvent)
-        True -> do
+    (.chatMode) <$> getSettings storeRead >>= \case
+        ChatOn -> chatVisible newMessage oldMessages
+        ChatCommands -> chatVisible newMessage oldMessages
+        ChatOff -> do
             chatHtml <- Html.chatMessages []
             let rawEvent = Datastar.patchElements chatHtml
             putChatContent storeWrite rawEvent
@@ -60,3 +48,18 @@ run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
             putChatMessages storeWrite []
             _ <- tryWriteQueue mainPageQueue ()
             writeBroadcast broadcastServer (ChatFrameUpdate rawEvent)
+  where
+    chatVisible newMessage oldMessages = do
+        -- CSS will reverse our list.
+        let newMessages = take 20 (newMessage : oldMessages)
+        chatHtml <- Html.chatMessages newMessages
+        let rawEvent = Datastar.patchElements chatHtml
+        let rawMessageEvent =
+                Datastar.patchElementsPrepend
+                    "#chat-messages"
+                    (Html.renderMessage newMessage)
+        putChatMessages storeWrite newMessages
+        putChatContentHtml storeWrite chatHtml
+        putChatContent storeWrite rawEvent
+        _ <- tryWriteQueue mainPageQueue ()
+        writeBroadcast broadcastServer (ChatNewMessage rawMessageEvent)

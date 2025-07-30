@@ -286,18 +286,23 @@ settings
     -> Settings
     -> Eff es (SourceIO EmptyResponse)
 settings storeWrite storeRead broadcast chatQueue mainPageQueue _ newSettings = do
-    oldDisableChat <- (.disableChat) <$> getSettings storeRead
+    oldChatMode <- (.chatMode) <$> getSettings storeRead
     putSettings storeWrite newSettings
-    case (oldDisableChat, newSettings.disableChat) of
-        (True, False) -> do
-            enableChatEvent <- getChatEnabled storeRead
-            writeBroadcast broadcast (ChatEnable enableChatEvent)
-        (False, True) -> do
-            disableChatEvent <- getChatDisabled storeRead
-            writeBroadcast broadcast (ChatDisable disableChatEvent)
+    case (oldChatMode, newSettings.chatMode) of
+        (ChatOn, ChatOff) -> chatOff
+        (ChatCommands, ChatOff) -> chatOff
+        (ChatOff, ChatOn) -> chatOn
+        (ChatOff, ChatCommands) -> chatOn
         _ -> pure ()
     _ <- tryWriteQueue mainPageQueue ()
     singleToSourceIO MkEmptyResponse
+  where
+    chatOn = do
+        enableChatEvent <- getChatEnabled storeRead
+        writeBroadcast broadcast (ChatEnable enableChatEvent)
+    chatOff = do
+        disableChatEvent <- getChatDisabled storeRead
+        writeBroadcast broadcast (ChatDisable disableChatEvent)
 
 changeDirection
     :: (e :> es) => BroadcastServer Command e -> Direction -> Maybe User -> Eff es (SourceIO EmptyResponse)

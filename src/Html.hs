@@ -87,7 +87,13 @@ settings foodOnBoard queueFull aliveSneks settings = div_ [id_ "settings", class
         settingItemInt "frameTimeMs" settings.frameTimeMs ccc.frameTimeMsMin ccc.frameTimeMsMax
         settingItemBool "useWebComponent" settings.useWebComponent ccc.webComponent
         settingItemBool "anonymousMode" settings.anonymousMode False
-        settingItemBool "disableChat" settings.disableChat False
+        settingItem
+            ( "chatMode"
+            , case settings.chatMode of
+                ChatOff -> "off"
+                ChatOn -> "on"
+                ChatCommands -> "commands"
+            )
         settingItemBool "queueFull" queueFull False
         settingItemInt "maxBots" settings.maxBots ccc.botsMin ccc.botsMax
         settingItemInt "gracePeriod" settings.gracePeriod ccc.gracePeriodMin ccc.gracePeriodMax

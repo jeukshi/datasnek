@@ -136,7 +136,7 @@ runStore io stme action = do
                 , frameTimeMs = 200
                 , useWebComponent = True
                 , anonymousMode = True
-                , disableChat = True
+                , chatMode = ChatOff
                 , maxBots = 40
                 , gracePeriod = 10
                 , snekSelfOwn = False
@@ -293,6 +293,7 @@ putSettings (UnsafeMkStoreWrite io stme store) =
 maybeChatEnabled :: (e :> es) => StoreChatRead e -> Eff es (Maybe RawEvent)
 maybeChatEnabled (UnsafeMkStoreChatRead io stme store) = do
     settings <- effIO io do readIORef store.settings
-    if settings.disableChat
-        then return Nothing
-        else return $ Just store.chatEnabled
+    case settings.chatMode of
+        ChatOff -> return Nothing
+        ChatOn -> return $ Just store.chatEnabled
+        ChatCommands -> return $ Just store.chatEnabled

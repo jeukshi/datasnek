@@ -2,11 +2,12 @@
 
 module Types where
 
-import Data.Aeson (FromJSON (parseJSON), withObject, (.:))
+import Data.Aeson (FromJSON (parseJSON), withObject, withText, (.:))
 import Data.Aeson qualified as Json
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
 import Data.List.NonEmpty qualified as NE
+import Data.Text qualified as T
 import GHC.Natural (Natural)
 import Lucid (Html, renderBS)
 import Network.HTTP.Media ((//), (/:))
@@ -30,6 +31,19 @@ instance MimeRender HtmlRaw RenderedHtml where
 renderHtml :: Html () -> RenderedHtml
 renderHtml = coerce . renderBS
 
+data ChatMode
+    = ChatOn
+    | ChatOff
+    | ChatCommands
+    deriving (Eq)
+
+instance FromJSON ChatMode where
+    parseJSON = withText "ChatMode" $ \t -> case T.toLower t of
+        "on" -> pure ChatOn
+        "off" -> pure ChatOff
+        "commands" -> pure ChatCommands
+        _ -> fail $ "Invalid ChatMode: " <> T.unpack t
+
 data Settings = MkSettings
     { maxFood :: Int
     , maxPlayers :: Int
@@ -38,7 +52,7 @@ data Settings = MkSettings
     , frameTimeMs :: Int
     , useWebComponent :: Bool
     , anonymousMode :: Bool
-    , disableChat :: Bool
+    , chatMode :: ChatMode
     , maxBots :: Int
     , gracePeriod :: Int
     , snekSelfOwn :: Bool
@@ -55,7 +69,7 @@ instance FromJSON Settings where
         frameTimeMs <- v .: "frameTimeMs"
         useWebComponent <- v .: "useWebComponent"
         anonymousMode <- v .: "anonymousMode"
-        disableChat <- v .: "disableChat"
+        chatMode <- v .: "chatMode"
         maxBots <- v .: "maxBots"
         gracePeriod <- v .: "gracePeriod"
         snekSelfOwn <- v .: "snekSelfOwn"
@@ -70,7 +84,7 @@ instance FromJSON Settings where
                 , frameTimeMs = frameTimeMs
                 , useWebComponent = useWebComponent
                 , anonymousMode = anonymousMode
-                , disableChat = disableChat
+                , chatMode = chatMode
                 , maxBots = maxBots
                 , gracePeriod = gracePeriod
                 , snekSelfOwn = snekSelfOwn
