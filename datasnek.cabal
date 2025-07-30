@@ -39,6 +39,7 @@ library
     , ChatManager
     , Html
     , Random
+    , App
     , Sleep
     , Store
     , Color

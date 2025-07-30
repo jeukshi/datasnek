@@ -1,6 +1,6 @@
 module Main where
 
-import Api
+import App qualified
 import System.Environment (getArgs)
 import Types (Env (..))
 
@@ -11,4 +11,4 @@ main = do
             if "--prod" `elem` args
                 then Prod
                 else Dev
-    run env
+    App.run env
