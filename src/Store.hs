@@ -112,11 +112,12 @@ runStore
     :: (e1 :> es, e2 :> es)
     => IOE e1
     -> BC.STME e2
+    -> Env
     -> (forall e. StoreRead e -> StoreWrite e -> StoreChatRead e -> Eff (e :& es) r)
     -> Eff es r
-runStore io stme action = do
+runStore io stme env action = do
     gameFrame <- effIO io do newIORef (MkRawEvent "") -- Nobody will notice.
-    let mainPage = renderHtml Html.mainPage
+    let mainPage = renderHtml $ Html.mainPage env
     let loginPage = renderHtml Html.loginPage
     let chatEnabled = Datastar.patchElements Html.chatEnabled
     let chatDisabled = Datastar.patchElements Html.chatDisabled

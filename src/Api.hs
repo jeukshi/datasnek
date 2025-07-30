@@ -314,19 +314,12 @@ transmittal
     :: (e1 :> es, e2 :> es)
     => StoreChatRead e1
     -> BroadcastClient StoreUpdate e2
-    -> Env
     -> Maybe User
     -> Eff es (SourceIO Transmittal)
-transmittal store gameStateBroadcast env = \case
+transmittal store gameStateBroadcast = \case
     Just user -> streamToSourceIO \out -> do
         evalState False \isPlayingS -> do
             yield out $ UpdateUsernameSignal user.name
-            when (env == Dev) do
-                let hotReloadEvent =
-                        Datastar.patchElementsPrepend
-                            "#container"
-                            (div_ [dataOnLoad_ JavaScript.hotreload] mempty)
-                yield out $ TransmittalRaw hotReloadEvent
             maybeChatEnabled store >>= \case
                 Nothing -> pure ()
                 -- There is a race condition here. Before reading any state,
@@ -394,7 +387,7 @@ run env = runEff \io -> do
     effIO io do print adminPassword
     -- Bluefin pyramid of doom.
     BC.runSTM io \stme -> do
-        runStore io stme \storeReadMain storeWriteMain storeChatReadMain -> do
+        runStore io stme env \storeReadMain storeWriteMain storeChatReadMain -> do
             runBroadcast io storeReadMain \broadcastGameStateClientMain broadcastGameStateServerMain -> do
                 runBroadcast io storeReadMain \broadcastCommandClientMain broadcastCommandServerMain -> do
                     runRandom io \randomMain -> do
@@ -501,7 +494,6 @@ run env = runEff \io -> do
                                                                         transmittal
                                                                             storeChatRead
                                                                             broadcastGameStateClient
-                                                                            env
                                                                     , _hotreload = hotreload once
                                                                     , _play = play storeRead broadcastCommandServer
                                                                     , _chat = chat broadcastCommandServer

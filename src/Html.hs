@@ -175,8 +175,8 @@ loginPage = pageHead do
                 button_ "join"
                 windowController_ [id_ "window-controller"] mempty
 
-mainPage :: Html ()
-mainPage = pageHead do
+mainPage :: Env -> Html ()
+mainPage env = pageHead do
     main_
         [ id_ "container"
         , class_ "container"
@@ -190,6 +190,7 @@ mainPage = pageHead do
         ]
         do
             div_ [dataOnLoad_ JavaScript.getTransmittal] mempty
+            if env == Dev then div_ [dataOnLoad_ JavaScript.hotreload] mempty else mempty
             div_ [dataOnKeydown__window_ JavaScript.gameInput] mempty
             div_ [class_ "main-container"] do
                 div_ [id_ "frame-container", class_ "frame-container"] do
