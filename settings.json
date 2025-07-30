@@ -3,12 +3,31 @@
   "maxPlayers": 40,
   "queueMaxSize": 20,
   "boardSize": 40,
-  "gameFrameTimeMs": 200,
+  "frameTimeMs": 200,
   "useWebComponent": false,
   "anonymousMode": false,
   "disableChat": false,
   "maxBots": 10,
   "gracePeriod": 10,
   "snekSelfOwn": true,
-  "snekCanReverse": false
+  "snekCanReverse": false,
+  "chatCanChange": {
+    "botsMin": 0,
+    "botsMax": 100,
+    "playersMin": 0,
+    "playersMax": 100,
+    "foodMin": 0,
+    "foodMax": 50,
+    "boardSizeMin": 5,
+    "boardSizeMax": 200,
+    "boardSizeWcMin": 6,
+    "boardSizeWcMax": 400,
+    "gracePeriodMin": 0,
+    "gracePeriodMax": 100,
+    "selfOwn": true,
+    "canReverse": true,
+    "webComponent": true,
+    "frameTimeMsMin": 50,
+    "frameTimeMsMax": 1000
+  }
 }

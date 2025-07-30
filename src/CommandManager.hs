@@ -42,7 +42,9 @@ import Servant (FromHttpApiData (..))
 import Snek
 import Store
 import StoreUpdate
-import Types (Settings (snekCanReverse))
+import Text.ParserCombinators.ReadP qualified as P
+import Text.Read qualified as T
+import Types (ChatCanChange (..), Settings (..))
 import Unsafe.Coerce (unsafeCoerce)
 import User
 
@@ -80,6 +82,9 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                 writeQueue localGameQueue user
             pure ()
         NewComment user message -> do
+            when ("!" `T.isPrefixOf` message.unMessage) do
+                settings <- getSettings storeRead
+                executeCommand storeWrite settings message.unMessage
             -- Making sure we don't block here.
             _ <- BC.fork scope \acc -> do
                 localChatQueue <- accessConcurrently acc chatQueue
@@ -94,3 +99,64 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
         False L R currNewDirection -> currNewDirection
         False R L currNewDirection -> currNewDirection
         False newDirection _ _ -> Just newDirection
+
+data PossiblyACommand
+    = CommandBool Text Bool
+    | CommandInt Text Int
+    | NotReally
+    deriving (Show)
+
+executeCommand :: (e :> es) => StoreWrite e -> Settings -> Text -> Eff es ()
+executeCommand storeWrite settings text = do
+    let ccc = settings.chatCanChange
+    case parseCommand text of
+        NotReally -> pure ()
+        (CommandInt "!maxBots" int) ->
+            when (between int ccc.botsMin ccc.botsMax) do
+                putSettings storeWrite settings{maxBots = int}
+        (CommandInt "!maxPlayers" int) ->
+            when (between int ccc.playersMin ccc.playersMax) do
+                putSettings storeWrite settings{maxPlayers = int}
+        (CommandInt "!maxFood" int) ->
+            when (between int ccc.foodMin ccc.foodMax) do
+                putSettings storeWrite settings{maxFood = int}
+        (CommandInt "!boardSize" int) ->
+            if settings.useWebComponent
+                then when (between int ccc.boardSizeWcMin ccc.boardSizeWcMax) do
+                    putSettings storeWrite settings{boardSize = int}
+                else when (between int ccc.boardSizeMin ccc.boardSizeMax) do
+                    putSettings storeWrite settings{boardSize = int}
+        (CommandInt "!gracePeriod" int) ->
+            when (between int ccc.gracePeriodMin ccc.gracePeriodMax) do
+                putSettings storeWrite settings{gracePeriod = int}
+        (CommandInt "!frameTimeMs" int) ->
+            when (between int ccc.frameTimeMsMin ccc.frameTimeMsMax) do
+                putSettings storeWrite settings{frameTimeMs = int}
+        (CommandBool "!snekSelfOwn" bool) ->
+            when ccc.selfOwn do
+                putSettings storeWrite settings{snekSelfOwn = bool}
+        (CommandBool "!snekCanReverse" bool) ->
+            when ccc.canReverse do
+                putSettings storeWrite settings{snekCanReverse = bool}
+        (CommandBool "!useWebComponent" bool) ->
+            when ccc.webComponent do
+                let minBs = if bool then ccc.boardSizeWcMin else ccc.boardSizeMin
+                let maxBs = if bool then ccc.boardSizeWcMax else ccc.boardSizeMax
+                putSettings
+                    storeWrite
+                    settings
+                        { useWebComponent = bool
+                        , boardSize = max minBs (min maxBs settings.boardSize)
+                        }
+        _ -> pure ()
+  where
+    parseCommand :: Text -> PossiblyACommand
+    parseCommand text = case T.splitOn " " text of
+        [command, mbValue] -> case mbValue of
+            "false" -> CommandBool command False
+            "true" -> CommandBool command True
+            mbInt -> case T.readMaybe (T.unpack mbInt) of
+                Just int -> CommandInt command int
+                Nothing -> NotReally
+        _ -> NotReally
+    between val min max = val >= min && val <= max

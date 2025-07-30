@@ -133,7 +133,7 @@ runStore io stme action = do
                 , maxPlayers = 50
                 , queueMaxSize = 50
                 , boardSize = 40
-                , gameFrameTimeMs = 200
+                , frameTimeMs = 200
                 , useWebComponent = True
                 , anonymousMode = True
                 , disableChat = True
@@ -141,6 +141,26 @@ runStore io stme action = do
                 , gracePeriod = 10
                 , snekSelfOwn = False
                 , snekCanReverse = True
+                , chatCanChange =
+                    MkChatCanChange
+                        { botsMin = 0
+                        , botsMax = 100
+                        , playersMin = 0
+                        , playersMax = 100
+                        , foodMin = 0
+                        , foodMax = 50
+                        , boardSizeMin = 5
+                        , boardSizeMax = 200
+                        , boardSizeWcMin = 5
+                        , boardSizeWcMax = 400
+                        , gracePeriodMin = 0
+                        , gracePeriodMax = 100
+                        , selfOwn = True
+                        , canReverse = True
+                        , webComponent = True
+                        , frameTimeMsMin = 50
+                        , frameTimeMsMax = 1000
+                        }
                 }
     foodPositions <- effIO io do newIORef Set.empty
     isQueueFull <- effIO io do newIORef False

@@ -118,15 +118,15 @@ advanceState gameState mbNewFood sneksDirectionsBefore = withStateSource \source
                                         snek.color
                                         newHeadOfSnek
                                         newRestOfSnek
-                                        (max 0 (snek.gracePeriod - 1))
+                                        (max 0 (snek.grace - 1))
     -- Eliminate some more.
     allHeads <- for movedSneks \snek -> do
-        pure (snek.user.userId, snek.headOfSnek, snek.gracePeriod)
+        pure (snek.user.userId, snek.headOfSnek, snek.grace)
     allTaken <-
         concat <$> for movedSneks \snek ->
             pure $
-                (snek.user.userId, True, snek.headOfSnek, snek.gracePeriod)
-                    : map (\x -> (snek.user.userId, False, x, snek.gracePeriod)) snek.restOfSnek
+                (snek.user.userId, True, snek.headOfSnek, snek.grace)
+                    : map (\x -> (snek.user.userId, False, x, snek.grace)) snek.restOfSnek
     for_ allTaken \(someUserId, someIsHead, taken, someGracePeriod) -> do
         let killCandidates =
                 map (\(otherUserId, _, _) -> otherUserId)
@@ -264,7 +264,7 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                 putGameFrame storeWrite frame
                 writeBroadcast broadcastGameStateServer event
                 _ <- tryWriteQueue mainPageQueue ()
-                (.gameFrameTimeMs) <$> getSettings storeRead
+                (.frameTimeMs) <$> getSettings storeRead
 
 maybeSpawnFood :: (e :> es) => Random e -> Int -> Int -> Int -> Eff es (Maybe (Int, Int))
 maybeSpawnFood random boardSize currentFood maxFood =
@@ -346,7 +346,7 @@ randomSnekAndDirection random gracePeriod user maxSize = do
                 , color = assignColor (userIdToText user.userId)
                 , headOfSnek = headPos
                 , restOfSnek = [tailPos]
-                , gracePeriod = gracePeriod
+                , grace = gracePeriod
                 }
     let snekDir =
             MkSnekDirection

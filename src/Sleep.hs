@@ -27,7 +27,7 @@ runSleep io action =
 sleepMs :: (e :> es) => Sleep e -> Int -> Eff es ()
 sleepMs (UnsafeMkSleep io) ms = effIO io do threadDelay (ms * 1000)
 
-foreverWithSleep :: (e :> es) => Sleep e -> Integer -> Eff es Integer -> Eff es ()
+foreverWithSleep :: (e :> es) => Sleep e -> Int -> Eff es Int -> Eff es ()
 foreverWithSleep (UnsafeMkSleep io) initialIntervalMs action = do
     let initialIntervalNano = initialIntervalMs * 1_000_1000
     evalState initialIntervalNano \intervalNsS -> forever do
@@ -36,7 +36,7 @@ foreverWithSleep (UnsafeMkSleep io) initialIntervalMs action = do
         endTime <- effIO io do getTime Monotonic
         let elapsedNs = toNanoSecs (endTime - startTime)
         intervalNs <- get intervalNsS
-        let remainingNs = intervalNs - elapsedNs
+        let remainingNs = intervalNs - fromIntegral elapsedNs
         when (remainingNs > 0) $ do
             let delayUs = remainingNs `div` 1000
             effIO io do threadDelay (fromIntegral delayUs)

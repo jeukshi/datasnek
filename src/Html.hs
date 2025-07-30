@@ -72,26 +72,42 @@ renderMessage (user, message) = do
         span_
             [class_ "chat-username", style_ ("color: " <> userColor <> ";")]
             (toHtml (user.name <> ": "))
-        span_ [class_ "chat-content"] (toHtml message.text)
+        span_ [class_ "chat-content"] (toHtml message.unMessage)
 
 settings :: Int -> Bool -> Int -> Settings -> Html ()
 settings foodOnBoard queueFull aliveSneks settings = div_ [id_ "settings", class_ "settings"] do
+    let ccc = settings.chatCanChange
     div_ [class_ "settings-grid"] do
-        settingItem ("maxFood", T.pack . show $ settings.maxFood)
-        settingItem ("foodOnBoard", T.pack . show $ foodOnBoard)
-        settingItem ("maxPlayers", T.pack . show $ settings.maxPlayers)
-        settingItem ("aliveSneks", T.pack . show $ aliveSneks)
-        settingItem ("queueMaxSize", T.pack . show $ settings.queueMaxSize)
-        settingItem ("boardSize", T.pack . show $ settings.boardSize)
-        settingItem ("gameFrameTimeMs", T.pack . show $ settings.gameFrameTimeMs)
-        settingItem ("useWebComponent", if settings.useWebComponent then "true" else "false")
-        settingItem ("anonymousMode", if settings.anonymousMode then "true" else "false")
-        settingItem ("disableChat", if settings.disableChat then "true" else "false")
-        settingItem ("queueFull", if queueFull then "true" else "false")
-        settingItem ("maxBots", T.pack . show $ settings.maxBots)
-        settingItem ("gracePeriod", T.pack . show $ settings.gracePeriod)
-        settingItem ("snekSelfOwn", if settings.snekSelfOwn then "true" else "false")
-        settingItem ("snekCanReverse", if settings.snekCanReverse then "true" else "false")
+        settingItemInt "maxFood" settings.maxFood ccc.foodMin ccc.foodMax
+        settingItem ("foodOnBoard", tshow foodOnBoard)
+        settingItemInt "maxPlayers" settings.maxPlayers ccc.playersMin ccc.playersMax
+        settingItem ("aliveSneks", tshow aliveSneks)
+        settingItem ("queueMaxSize", tshow settings.queueMaxSize)
+        settingItemInt "boardSize" settings.boardSize ccc.boardSizeMin ccc.boardSizeMax
+        settingItemInt "frameTimeMs" settings.frameTimeMs ccc.frameTimeMsMin ccc.frameTimeMsMax
+        settingItemBool "useWebComponent" settings.useWebComponent ccc.webComponent
+        settingItemBool "anonymousMode" settings.anonymousMode False
+        settingItemBool "disableChat" settings.disableChat False
+        settingItemBool "queueFull" queueFull False
+        settingItemInt "maxBots" settings.maxBots ccc.botsMin ccc.botsMax
+        settingItemInt "gracePeriod" settings.gracePeriod ccc.gracePeriodMin ccc.gracePeriodMax
+        settingItemBool "snekSelfOwn" settings.snekSelfOwn ccc.selfOwn
+        settingItemBool "snekCanReverse" settings.snekCanReverse ccc.canReverse
+  where
+    settingItemInt :: Text -> Int -> Int -> Int -> Html ()
+    settingItemInt label value minV maxV =
+        settingItem (label, tshow value <> " (" <> tshow minV <> "-" <> tshow maxV <> ")")
+
+    settingItemBool :: Text -> Bool -> Bool -> Html ()
+    settingItemBool label value canChange = do
+        let otherOption =
+                if canChange
+                    then if value then " (false)" else " (true)"
+                    else ""
+        settingItem (label, (if value then "true" else "false") <> otherOption)
+
+    tshow :: (Show a) => a -> Text
+    tshow = T.pack . show
 
 settingItem :: (Text, Text) -> Html ()
 settingItem (label, value) =
@@ -255,14 +271,14 @@ renderBoard anonymousMode renderForUser gameState = do
     snakeCells :: Map (Int, Int) (User, Text, Bool, Int)
     snakeCells =
         Map.fromList $
-            [ (coord, (s.user, s.color, False, s.gracePeriod))
+            [ (coord, (s.user, s.color, False, s.grace))
             | s <- gameState.aliveSneks
             , coord <- s.restOfSnek
             ]
                 -- It is important that heads go last into the list.
                 -- That way head will be always in the map,
                 -- so we can display nameplate properly.
-                ++ [ (s.headOfSnek, (s.user, s.color, True, s.gracePeriod))
+                ++ [ (s.headOfSnek, (s.user, s.color, True, s.grace))
                    | s <- gameState.aliveSneks
                    ]
     base = "board-item"
