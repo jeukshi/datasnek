@@ -50,15 +50,20 @@ run storeWrite storeRead queue broadcastServer mainPageQueue = forever do
             writeBroadcast broadcastServer (ChatFrameUpdate rawEvent)
   where
     chatVisible newMessage oldMessages = do
+        anonymousMode <- (.anonymousMode) <$> getSettings storeRead
+        let newMessageForChat =
+                if anonymousMode
+                    then (MkUser "snek" "snek", snd newMessage)
+                    else newMessage
         -- CSS will reverse our list.
-        let newMessages = take 20 (newMessage : oldMessages)
-        chatHtml <- Html.chatMessages newMessages
+        let newMessagesForChat = take 20 (newMessageForChat : oldMessages)
+        chatHtml <- Html.chatMessages newMessagesForChat
         let rawEvent = Datastar.patchElements chatHtml
         let rawMessageEvent =
                 Datastar.patchElementsPrepend
                     "#chat-messages"
-                    (Html.renderMessage newMessage)
-        putChatMessages storeWrite newMessages
+                    (Html.renderMessage newMessageForChat)
+        putChatMessages storeWrite newMessagesForChat
         putChatContentHtml storeWrite chatHtml
         putChatContent storeWrite rawEvent
         _ <- tryWriteQueue mainPageQueue ()
