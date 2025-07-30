@@ -9,7 +9,6 @@ import Bluefin.Eff (Eff, (:&), (:>))
 import Bluefin.Extra
 import Bluefin.IO (IOE, effIO)
 import Color (assignColor)
-import Command (Direction (..))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, takeMVar, tryReadMVar)
 import Control.Concurrent.STM (writeTVar)
@@ -28,12 +27,9 @@ import Lucid (Html)
 import Lucid.Base (renderBS)
 import Lucid.Datastar (dataBind_, dataOnKeydown_, dataShow_, dataSignals_)
 import Lucid.Html5
-import Message
 import Numeric.Natural (Natural)
 import RawSse (RawEvent (..))
-import Snek
 import Types
-import User
 
 -- General guidance here is that if something is an IORef,
 -- it is written to by only one thread. If it is a MVar/TVar,

@@ -7,12 +7,22 @@ import Data.Aeson qualified as Json
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
 import Data.List.NonEmpty qualified as NE
+import Data.Strict.Map (Map)
+import Data.Strict.Set (Set)
+import Data.String (IsString)
+import Data.Text (Text)
 import Data.Text qualified as T
+import Data.UUID (UUID)
+import Data.UUID qualified as UUID
+import GHC.Generics (Generic)
 import GHC.Natural (Natural)
 import Lucid (Html, renderBS)
 import Network.HTTP.Media ((//), (/:))
+import RawSse (RawEvent)
+import Servant (FromHttpApiData (..))
 import Servant.API (Accept (contentTypes), MimeRender (..))
 import Servant.HtmlRaw (HtmlRaw)
+import Web.Cookie (parseCookiesText)
 
 data Env = Prod | Dev
     deriving (Eq)
@@ -30,6 +40,95 @@ instance MimeRender HtmlRaw RenderedHtml where
 
 renderHtml :: Html () -> RenderedHtml
 renderHtml = coerce . renderBS
+
+newtype Message = MkMessage {text :: Text}
+    deriving (Eq) via Text
+
+instance FromJSON Message where
+    parseJSON = withObject "Comment" $ \v ->
+        MkMessage
+            <$> v .: "comment"
+
+data GameState = MkGameState
+    { boardSize :: Int
+    , foodPositions :: Set (Int, Int)
+    , aliveSneks :: Sneks
+    , newPlayer :: Maybe (Snek, SnekDirection)
+    , maxPlayers :: Int
+    , snekSelfOwn :: Bool
+    }
+    deriving (Show)
+
+data Command
+    = ChangeDirection UserId Direction
+    | PlayRequest User
+    | NewComment User Message
+    deriving (Eq)
+
+data Direction = U | D | L | R
+    deriving (Eq, Show)
+
+instance FromHttpApiData Direction where
+    parseUrlPiece t = case T.toLower t of
+        "u" -> Right U
+        "d" -> Right D
+        "l" -> Right L
+        "r" -> Right R
+        _ -> Left $ "Invalid direction: " <> t
+
+newtype UserId = UnsafeMkUserId {fromUserId :: Text}
+    deriving (Eq, Ord, IsString, Show) via Text
+
+data User = MkUser
+    { name :: Text
+    , userId :: UserId
+    }
+    deriving (Eq, Show)
+
+userIdToText :: UserId -> Text
+userIdToText = coerce
+
+userIdFromUuid :: UUID -> UserId
+userIdFromUuid = coerce . UUID.toText
+
+instance FromHttpApiData User where
+    parseQueryParam = const $ Left "Not implemented"
+    parseHeader header = do
+        let cookies = parseCookiesText header
+        name <- maybeToEither "Missing datasnek-name" $ lookup "datasnek-name" cookies
+        uid <- maybeToEither "Missing datasnek-id" $ lookup "datasnek-id" cookies
+        pure $ MkUser name (coerce uid)
+
+maybeToEither :: e -> Maybe a -> Either e a
+maybeToEither err = maybe (Left err) Right
+
+type Sneks = [Snek]
+
+data Snek = MkSnek
+    { user :: User
+    , color :: Text
+    , headOfSnek :: (Int, Int)
+    , restOfSnek :: [(Int, Int)]
+    , grace :: Int
+    }
+    deriving (Show, Eq)
+
+type SneksDirections = Map UserId SnekDirection
+
+data SnekDirection = MkSnekDirection
+    { current :: Direction
+    , new :: Maybe Direction
+    }
+    deriving (Show, Generic)
+
+data StoreUpdate
+    = GameFrameUpdate (Map UserId RawEvent) RawEvent SneksDirections
+    | WebComponentUpdate RawEvent SneksDirections
+    | ChatFrameUpdate RawEvent
+    | ChatNewMessage RawEvent
+    | UsernameUpdate RawEvent
+    | ChatEnable RawEvent
+    | ChatDisable RawEvent
 
 data ChatMode
     = ChatOn

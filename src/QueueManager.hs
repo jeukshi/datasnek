@@ -10,9 +10,7 @@ import Queue
 import RawSse (RawEvent (..))
 import Sleep
 import Store
-import StoreUpdate
 import Types
-import User
 
 run
     :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es)

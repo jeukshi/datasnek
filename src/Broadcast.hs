@@ -23,7 +23,6 @@ import Control.Monad (forever)
 import Data.Foldable (for_)
 import RawSse
 import Store
-import StoreUpdate (StoreUpdate (..))
 import Unsafe.Coerce (unsafeCoerce)
 
 data BroadcastClient a e = UnsafeMkBroadcastClient

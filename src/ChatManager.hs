@@ -17,14 +17,11 @@ import Data.Text (Text)
 import Datastar qualified
 import Html qualified
 import Lucid hiding (for_)
-import Message
 import Queue
 import RawSse
 import Sleep
 import Store
-import StoreUpdate
 import Types
-import User
 
 run
     :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es)

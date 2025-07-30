@@ -16,14 +16,10 @@ import Data.Strict.Set qualified as Set
 import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.Encoding qualified as T
-import GameState
 import JavaScript qualified
 import Lucid hiding (for_)
 import Lucid.Datastar
-import Message
-import Snek
 import Types
-import User
 import WebComponents (
     anonymous_,
     boardSize_,
@@ -72,7 +68,7 @@ renderMessage (user, message) = do
         span_
             [class_ "chat-username", style_ ("color: " <> userColor <> ";")]
             (toHtml (user.name <> ": "))
-        span_ [class_ "chat-content"] (toHtml message.unMessage)
+        span_ [class_ "chat-content"] (toHtml message.text)
 
 settings :: Int -> Bool -> Int -> Settings -> Html ()
 settings foodOnBoard queueFull aliveSneks settings = div_ [id_ "settings", class_ "settings"] do

@@ -10,7 +10,6 @@ import Bluefin.StateSource (newState, withStateSource)
 import Bluefin.Stream (forEach)
 import Broadcast
 import Color (assignColor)
-import Command
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM qualified as STM
 import Control.Monad (forever, when)
@@ -34,19 +33,25 @@ import Data.Text.Lazy.Encoding qualified as TL
 import Data.Traversable (for)
 import Lucid hiding (for_)
 import Lucid.Datastar (dataAttr_)
-import Message
 import Queue
 import Random
 import RawSse (RawEvent (..))
 import Servant (FromHttpApiData (..))
-import Snek
 import Store
-import StoreUpdate
 import Text.ParserCombinators.ReadP qualified as P
 import Text.Read qualified as T
-import Types (ChatCanChange (..), ChatMode (..), Settings (..))
+import Types (
+    ChatCanChange (..),
+    ChatMode (..),
+    Command (..),
+    Direction (..),
+    Message (..),
+    Settings (..),
+    SnekDirection (..),
+    StoreUpdate,
+    User,
+ )
 import Unsafe.Coerce (unsafeCoerce)
-import User
 
 run
     :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es, e6 :> es, e7 :> es, e4 :> scopeEs)
@@ -83,10 +88,10 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
             pure ()
         NewComment user message -> do
             commandResult <-
-                if "!" `T.isPrefixOf` message.unMessage
+                if "!" `T.isPrefixOf` message.text
                     then do
                         settings <- getSettings storeRead
-                        executeCommand storeWrite settings message.unMessage
+                        executeCommand storeWrite settings message.text
                     else pure False
             chatMode <- (.chatMode) <$> getSettings storeRead
             case (chatMode, commandResult) of

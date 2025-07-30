@@ -28,7 +28,6 @@ library
     , Bluefin.Proxy
     , Bluefin.Servant
     , Broadcast
-    , Command
     , Game
     , GenUuid
     , Lucid.Datastar
@@ -40,13 +39,8 @@ library
     , ChatManager
     , Html
     , Random
-    , Snek
     , Sleep
     , Store
-    , StoreUpdate
-    , User
-    , GameState
-    , Message
     , Color
     , RawSse
     , WebComponents

@@ -23,7 +23,6 @@ import BotManager qualified
 import Broadcast
 import ChatManager qualified
 import Color (generateColors)
-import Command (Command (..), Direction (..))
 import CommandManager qualified
 import Control.Concurrent (putMVar, threadDelay)
 import Control.Concurrent qualified
@@ -60,7 +59,6 @@ import Lucid (Html, HtmlT, ToHtml (..))
 import Lucid.Base (makeAttributes, renderBS)
 import Lucid.Datastar
 import Lucid.Html5
-import Message
 import Network.Wai.Handler.Warp qualified as Warp
 import Numeric.Natural (Natural)
 import Queue
@@ -101,12 +99,9 @@ import Servant.Server.Generic (AsServerT, genericServeT, genericServeTWithContex
 import Servant.Types.SourceT (SourceT)
 import Servant.Types.SourceT qualified as S
 import Sleep
-import Snek
 import Store
-import StoreUpdate
 import Types
 import Unsafe.Coerce (unsafeCoerce)
-import User
 import Web.FormUrlEncoded (FromForm (..), parseUnique)
 import WebComponents (
     JS,
