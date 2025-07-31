@@ -3,7 +3,6 @@
 module Bluefin.Servant (streamToSourceIO, singleToSourceIO) where
 
 import Bluefin.Compound (useImplUnder)
-import Bluefin.Concurrent.Local qualified as BC
 import Bluefin.Coroutine (forEach)
 import Bluefin.Eff (Eff, (:&), (:>))
 import Bluefin.IO (IOE, effIO)
@@ -12,7 +11,6 @@ import Bluefin.Stream (Stream)
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.MVar (MVar, newEmptyMVar, putMVar, takeMVar)
 import Servant.API.Stream (SourceIO)
-import Servant.Server (Application)
 import Servant.Types.SourceT qualified as S
 
 streamToSourceIO
@@ -47,27 +45,3 @@ streamToSourceIO stream = Bluefin.Internal.unsafeProvideIO \io -> do
 
 singleToSourceIO :: a -> Eff es (SourceIO a)
 singleToSourceIO x = pure $ S.SourceT \k -> k (S.Yield x S.Stop)
-
--- FIXME TODO
-newtype EffServant es a = MkEffServant {unEffServant :: Eff es a}
-    deriving (Functor, Applicative, Monad) via (Eff es)
-
-runServantEnv
-    :: (forall e. BC.ExclusiveAccess es e -> EffServant e ())
-    -> Eff es ()
-runServantEnv body = undefined
-
-{-effReader :: (r -> Eff es a) -> EffReader r es a
-effReader = MkEffReader
-
-runEffReader :: r -> EffReader r es a -> Eff es a
-runEffReader r (MkEffReader m) = m r
--}
-
-withEffect
-    :: ((e' :> es', e :> es) => BC.ExclusiveAccess es' e -> a e' -> Eff es (a e))
-    -> BC.ExclusiveAccess es' e
-    -> a e'
-    -> EffServant (e' :& ess) x
-    -> EffServant ess x
-withEffect _ = undefined

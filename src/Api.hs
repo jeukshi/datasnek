@@ -3,117 +3,82 @@
 
 module Api where
 
-import Bluefin.Compound (useImplUnder)
-import Bluefin.Concurrent.Local qualified as BC
-import Bluefin.Consume (await)
-import Bluefin.Coroutine (Coroutine, connectCoroutines)
-import Bluefin.EarlyReturn
-import Bluefin.Eff (Eff, bracket, runEff, (:&), (:>))
-import Bluefin.Exception (throw, try)
-import Bluefin.Extra (accessConcurrently, growScope)
-import Bluefin.IO (IOE, effIO)
+import Bluefin.Coroutine (forEach)
+import Bluefin.Eff (Eff, (:>))
+import Bluefin.IO (IOE)
 import Bluefin.Internal qualified
-import Bluefin.Once
-import Bluefin.Proxy (captureEffEnv)
-import Bluefin.Reader
+import Bluefin.Once (Once, only)
 import Bluefin.Servant (singleToSourceIO, streamToSourceIO)
-import Bluefin.State
-import Bluefin.Stream (Stream, consumeStream, forEach, yield)
-import BotManager qualified
-import Broadcast
-import ChatManager qualified
-import Color (generateColors)
-import CommandManager qualified
-import Control.Concurrent (putMVar, threadDelay)
-import Control.Concurrent qualified
-import Control.Concurrent.Async qualified as Async
-import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar)
-import Control.Concurrent.STM qualified as STM
-import Control.Monad (forever, unless, when)
+import Bluefin.State (evalState, get, put)
+import Bluefin.Stream (yield)
+import Broadcast (BroadcastClient, BroadcastServer, likeAndSubscribe, writeBroadcast)
+import Control.Monad (unless)
 import Control.Monad.IO.Class (liftIO)
 import Css (CSS)
-import Css qualified
-import Data.Aeson (FromJSON (parseJSON), KeyValue ((.=)), ToJSON, withObject, (.:))
+import Data.Aeson ((.=))
 import Data.Aeson qualified as Json
-import Data.Aeson.Types (FromJSON)
 import Data.ByteString (ByteString)
 import Data.ByteString qualified as BS
-import Data.ByteString.Lazy qualified as BL
-import Data.Foldable qualified as Foldable
 import Data.Strict.Map qualified as Map
 import Data.Text (Text)
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
 import Data.UUID qualified as UUID
-import Data.UUID.V4 (nextRandom)
-import Data.UUID.V4 qualified as UUID
 import Datastar qualified
 import Favicon (Png)
-import Favicon qualified
 import GHC.Generics (Generic)
-import Game qualified
-import GenUuid (GenUuid, nextUuid, runGenUuid)
-import Html qualified
-import JavaScript qualified
-import Lucid (Html, HtmlT, ToHtml (..))
-import Lucid.Base (makeAttributes, renderBS)
-import Lucid.Datastar
-import Lucid.Html5
-import Network.Wai.Handler.Warp qualified as Warp
-import Numeric.Natural (Natural)
-import Queue
-import QueueManager qualified
-import Random (runRandom)
-import RawSse
+import GenUuid (GenUuid, nextUuid)
+import Lucid.Html5 (id_)
+import Queue (Queue, tryWriteQueue)
+import RawSse (RawEvent (..), SseGet, SsePost, ToSse (..))
 import Servant (
-    Application,
     BasicAuth,
     BasicAuthData (..),
     BasicAuthResult (..),
     Capture,
     Context (..),
-    Delete,
-    FormUrlEncoded,
     GenericMode (type (:-)),
     Get,
     Handler,
     Headers,
-    OctetStream,
-    Post,
     Proxy,
     QueryParam,
     ReqBody,
     SourceIO,
     addHeader,
     noHeader,
-    serveWithContext,
-    serveWithContextT,
  )
 import Servant qualified
-import Servant.API (Header, JSON, StdMethod (..), UVerb, WithStatus)
-import Servant.API.ContentTypes.Lucid (HTML)
-import Servant.API.Stream (SourceToSourceIO (..))
-import Servant.HtmlRaw
+import Servant.API (Header, JSON)
 import Servant.Server (BasicAuthCheck (..))
-import Servant.Server.Generic (AsServerT, genericServeT, genericServeTWithContext)
-import Servant.Types.SourceT (SourceT)
-import Servant.Types.SourceT qualified as S
-import Sleep
-import Store
-import Types
-import Unsafe.Coerce (unsafeCoerce)
-import Web.FormUrlEncoded (FromForm (..), parseUnique)
+import Store (
+    StoreChatRead,
+    StoreRead,
+    StoreWrite,
+    getChatDisabled,
+    getChatEnabled,
+    getIsQueueFull,
+    getLoginPage,
+    getMainPage,
+    getSettings,
+    maybeChatEnabled,
+    putSettings,
+ )
+import Types (
+    ChatMode (ChatCommands, ChatOff, ChatOn),
+    Command (..),
+    Direction,
+    HtmlRaw,
+    Message,
+    RenderedHtml,
+    Settings (chatMode),
+    StoreUpdate (..),
+    User (name, userId),
+ )
 import WebComponents (
     JS,
-    boardSize_,
-    food_,
     location_,
     reload_,
-    snekGameBoard_,
-    sneks_,
     windowController_,
  )
-import WebComponents qualified
 
 type (:>>) = (Servant.:>)
 
@@ -137,10 +102,10 @@ instance ToSse SetInQueue where
         Datastar.patchSignals $ Json.object ["inqueue" .= True]
 
 data HotReload = HotReload
-    deriving (Show)
+    deriving stock (Show)
 
 instance ToSse HotReload where
-    toSse book =
+    toSse _ =
         toSse . Datastar.patchElements $
             windowController_ [id_ "window-controller", reload_] mempty
 
@@ -223,7 +188,7 @@ data Routes es route = Routes
     , _favicon :: route :- "favicon.ico" :>> Get '[Png] BS.ByteString
     , _hotreload :: route :- "dev" :>> "hotreload" :>> SseGet (SourceIO HotReload)
     }
-    deriving (Generic)
+    deriving stock (Generic)
 
 loginPage :: (e :> es) => StoreRead e -> Eff es RenderedHtml
 loginPage = getLoginPage
@@ -271,16 +236,15 @@ chat broadcast = \cases
         singleToSourceIO MkRemoveComment
 
 settings
-    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es)
+    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es)
     => StoreWrite e1
     -> StoreRead e2
     -> BroadcastServer StoreUpdate e3
-    -> Queue (User, Message) e4
-    -> Queue () e5
+    -> Queue () e4
     -> ()
     -> Settings
     -> Eff es (SourceIO EmptyResponse)
-settings storeWrite storeRead broadcast chatQueue mainPageQueue _ newSettings = do
+settings storeWrite storeRead broadcast mainPageQueue _ newSettings = do
     oldChatMode <- (.chatMode) <$> getSettings storeRead
     putSettings storeWrite newSettings
     case (oldChatMode, newSettings.chatMode) of
@@ -367,7 +331,7 @@ page = getMainPage
 -- FIXME This foe is beyond me.
 -- This code "works", but I can pass any handler to servant,
 -- that then will be used concurrently!
-nt :: forall es a e. (e :> es) => IOE e -> Proxy es -> Eff es a -> Handler a
+nt :: forall es a e. IOE e -> Proxy es -> Eff es a -> Handler a
 nt _ _ = liftIO . Bluefin.Internal.unsafeUnEff
 
 ctx :: ByteString -> Context (BasicAuthCheck () ': '[])

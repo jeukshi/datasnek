@@ -11,10 +11,9 @@ import Data.Proxy (Proxy (..))
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 import Network.HTTP.Media ((//), (/:))
-import Servant (HasLink, HasServer (..), NewlineFraming, NoFraming)
+import Servant (HasLink, HasServer (..), NewlineFraming)
 import Servant.API (
     Accept,
-    FramingRender (..),
     GetHeaders,
     HasLink (..),
     Headers,
@@ -47,7 +46,7 @@ instance (ToSse a) => MimeRender Sse a where
     mimeRender _ = toSse
 
 data SseGet (a :: Type)
-    deriving (Typeable, Generic)
+    deriving stock (Typeable, Generic)
 
 instance HasLink (SseGet a) where
     type MkLink (SseGet a) r = r
@@ -83,7 +82,7 @@ instance
             (Proxy :: Proxy (StreamGet NewlineFraming Sse (Headers h a)))
 
 data SsePost (a :: Type)
-    deriving (Typeable, Generic)
+    deriving stock (Typeable, Generic)
 
 instance HasLink (SsePost a) where
     type MkLink (SsePost a) r = r

@@ -17,7 +17,7 @@ import Servant.API.ContentTypes (Accept (..))
 snekGameControllerJS :: Data.ByteString.ByteString
 snekGameControllerJS = $(embedFile "static/snek-game-component.js")
 
-data JS deriving (Typeable)
+data JS deriving stock (Typeable)
 
 instance Accept JS where
     contentType _ = "application" M.// "javascript"

@@ -3,7 +3,6 @@
 module Types where
 
 import Data.Aeson (FromJSON (parseJSON), withObject, withText, (.:))
-import Data.Aeson qualified as Json
 import Data.ByteString.Lazy qualified as BL
 import Data.Coerce (coerce)
 import Data.List.NonEmpty qualified as NE
@@ -12,6 +11,7 @@ import Data.Strict.Set (Set)
 import Data.String (IsString)
 import Data.Text (Text)
 import Data.Text qualified as T
+import Data.Typeable (Typeable)
 import Data.UUID (UUID)
 import Data.UUID qualified as UUID
 import GHC.Generics (Generic)
@@ -20,12 +20,19 @@ import Lucid (Html, renderBS)
 import Network.HTTP.Media ((//), (/:))
 import RawSse (RawEvent)
 import Servant (FromHttpApiData (..))
-import Servant.API (Accept (contentTypes), MimeRender (..))
-import Servant.HtmlRaw (HtmlRaw)
+import Servant.API (Accept (..), MimeRender (..))
 import Web.Cookie (parseCookiesText)
 
 data Env = Prod | Dev
-    deriving (Eq)
+    deriving stock (Eq)
+
+data HtmlRaw deriving stock (Typeable)
+
+instance Accept HtmlRaw where
+    contentType _ = "text" // "html"
+
+instance MimeRender HtmlRaw BL.ByteString where
+    mimeRender _ = id
 
 newtype RenderedHtml where
     MkRenderedHtml :: {unRenderedHtml :: BL.ByteString} -> RenderedHtml
@@ -57,16 +64,16 @@ data GameState = MkGameState
     , maxPlayers :: Int
     , snekSelfOwn :: Bool
     }
-    deriving (Show)
+    deriving stock (Show)
 
 data Command
     = ChangeDirection UserId Direction
     | PlayRequest User
     | NewComment User Message
-    deriving (Eq)
+    deriving stock (Eq)
 
 data Direction = U | D | L | R
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 instance FromHttpApiData Direction where
     parseUrlPiece t = case T.toLower t of
@@ -83,7 +90,7 @@ data User = MkUser
     { name :: Text
     , userId :: UserId
     }
-    deriving (Eq, Show)
+    deriving stock (Eq, Show)
 
 userIdToText :: UserId -> Text
 userIdToText = coerce
@@ -111,7 +118,7 @@ data Snek = MkSnek
     , restOfSnek :: [(Int, Int)]
     , grace :: Int
     }
-    deriving (Show, Eq)
+    deriving stock (Show, Eq)
 
 type SneksDirections = Map UserId SnekDirection
 
@@ -119,7 +126,7 @@ data SnekDirection = MkSnekDirection
     { current :: Direction
     , new :: Maybe Direction
     }
-    deriving (Show, Generic)
+    deriving stock (Show, Generic)
 
 data StoreUpdate
     = GameFrameUpdate (Map UserId RawEvent) RawEvent SneksDirections
@@ -134,7 +141,7 @@ data ChatMode
     = ChatOn
     | ChatOff
     | ChatCommands
-    deriving (Eq)
+    deriving stock (Eq)
 
 instance FromJSON ChatMode where
     parseJSON = withText "ChatMode" $ \t -> case T.toLower t of

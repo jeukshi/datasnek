@@ -1,25 +1,15 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Redundant <$>" #-}
+
 module ChatManager (run) where
 
 import Bluefin.Eff
-import Bluefin.IO
-import Bluefin.Internal qualified
-import Bluefin.State
 import Broadcast
-import Color (assignColor)
-import Control.Monad (forever, when)
-import Data.ByteString.Lazy qualified as BL
-import Data.Foldable (for_)
-import Data.Functor.Identity (Identity)
-import Data.Text (Text)
+import Control.Monad (forever)
 import Datastar qualified
 import Html qualified
-import Lucid hiding (for_)
 import Queue
-import RawSse
-import Sleep
 import Store
 import Types
 

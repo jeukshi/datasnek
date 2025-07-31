@@ -14,7 +14,7 @@ import Servant.API.ContentTypes (Accept (..))
 file :: Data.ByteString.ByteString
 file = $(embedFile "static/snek.css")
 
-data CSS deriving (Typeable)
+data CSS deriving stock (Typeable)
 
 instance Accept CSS where
     contentType _ = "text" M.// "css"

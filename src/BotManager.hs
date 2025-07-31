@@ -2,8 +2,6 @@ module BotManager (run) where
 
 import Bluefin.Coroutine
 import Bluefin.Eff
-import Bluefin.IO (effIO)
-import Bluefin.Internal qualified
 import Bluefin.State
 import Bluefin.StateSource (newState, withStateSource)
 import Broadcast
@@ -18,7 +16,6 @@ import Data.Strict.Map qualified as Map
 import Data.Strict.Set (Set)
 import Data.Strict.Set qualified as Set
 import Data.Text (Text)
-import Data.Text qualified as T
 import Data.Traversable (for)
 import GenUuid
 import Random
@@ -38,10 +35,10 @@ run storeRead broadcastStore broadcastCommand random genUuid = do
         snekBotsS <- newState source []
         snekBotInQueueS <- newState source Nothing
         forEach (likeAndSubscribe broadcastStore) \case
-            GameFrameUpdate _ _ sneksDirections -> do
-                manageBots storeRead broadcastCommand random genUuid snekBotsS snekBotInQueueS sneksDirections
-            WebComponentUpdate _ sneksDirections -> do
-                manageBots storeRead broadcastCommand random genUuid snekBotsS snekBotInQueueS sneksDirections
+            GameFrameUpdate{} -> do
+                manageBots storeRead broadcastCommand random genUuid snekBotsS snekBotInQueueS
+            WebComponentUpdate _ _ -> do
+                manageBots storeRead broadcastCommand random genUuid snekBotsS snekBotInQueueS
             _ -> pure ()
 
 manageBots
@@ -52,9 +49,8 @@ manageBots
     -> GenUuid e4
     -> State [UserId] e5
     -> State (Maybe UserId) e6
-    -> SneksDirections
     -> Eff es ()
-manageBots storeRead broadcastCommand random genUuid snekBotsS snekBotInQueueS snekDirection = do
+manageBots storeRead broadcastCommand random genUuid snekBotsS snekBotInQueueS = do
     aliveSneks <- getSneks storeRead
     snekBots <- get snekBotsS
     let aliveSneksIds = map ((.user.userId)) aliveSneks
@@ -129,7 +125,6 @@ decideBotDirection random foodPositions boardSize snek currentSnekDir = do
                 random
                 foodPositions
                 snek
-                currentSnekDir
                 (getPossibleMoves snek boardSize currentSnekDir)
 
 getPossibleMoves :: Snek -> Int -> Direction -> NonEmpty Direction
@@ -164,10 +159,9 @@ makeFoodSeekingMove
     => Random e
     -> Set (Int, Int)
     -> Snek
-    -> Direction
     -> NonEmpty Direction
     -> Eff es Direction
-makeFoodSeekingMove random foodPositions snek currentSnekDir possibleMoves = do
+makeFoodSeekingMove random foodPositions snek possibleMoves = do
     if null foodPositions
         then randomFromList random possibleMoves
         else do

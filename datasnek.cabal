@@ -11,6 +11,22 @@ common runtime-opts
 
 common warning-opts
     ghc-options:
+      -Wall
+      -Wincomplete-uni-patterns
+      -Wincomplete-record-updates
+      -- -Wmonomorphism-restriction
+      -- -Wmissing-local-signatures
+      -Wmissing-exported-signatures
+      -Wmissing-home-modules
+      -Widentities
+      -Wredundant-constraints
+      -Wpartial-fields
+      -Wmissed-specialisations
+      -Wcpp-undef
+      -Wduplicate-constraints
+      -Wmissing-deriving-strategies
+      -Wunused-packages
+      -Wunused-type-patterns
       -fwarn-incomplete-patterns
       -fno-show-error-context
 
@@ -47,7 +63,6 @@ library
     , WebComponents
     , BotManager
     , Types
-    , Servant.HtmlRaw
     , Css
     , Favicon
   build-depends:
@@ -79,6 +94,7 @@ library
   default-language: GHC2021
   default-extensions:
       BlockArguments
+    , DerivingStrategies
     , DuplicateRecordFields
     , ImportQualifiedPost
     , InstanceSigs

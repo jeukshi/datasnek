@@ -4,7 +4,6 @@ import Bluefin.Compound (Handle (..), useImplIn)
 import Bluefin.Eff (Eff, (:&), (:>))
 import Bluefin.Extra
 import Bluefin.IO (IOE, effIO)
-import Control.Concurrent (threadDelay)
 import Data.UUID (UUID)
 import Data.UUID.V4 (nextRandom)
 

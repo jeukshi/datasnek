@@ -1,16 +1,12 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 module Bluefin.Concurrent.Local where
 
 import Bluefin.Internal
-import Control.Concurrent (MVar, threadDelay)
-import Control.Concurrent.MVar (newEmptyMVar, putMVar, takeMVar, tryPutMVar)
+import Control.Concurrent (MVar)
+import Control.Concurrent.MVar (newEmptyMVar)
 import Control.Concurrent.STM qualified as STM
-import Control.Monad (forever, replicateM_, when)
-import Data.Functor (void)
-import Data.List qualified as List
-import Data.Maybe (isJust)
-import Data.Proxy (Proxy (Proxy))
 import Ki qualified
-import System.IO.Unsafe (unsafePerformIO)
 
 -- This is all stolen copy/pasted code from Bluefin ki branch,
 -- since I had to change `scoped` definition a little bit

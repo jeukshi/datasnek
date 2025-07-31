@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 module Bluefin.Extra where
 
 import Bluefin.Compound
@@ -43,7 +45,7 @@ instance ThreadSafe (BC.Scope scopeEs) where
         => BC.ExclusiveAccess es' e
         -> BC.Scope scopeEs e'
         -> Eff es (BC.Scope scopeEs e)
-    accessConcurrently (BC.UnsafeMkExclusiveAccess x y z) (BC.UnsafeMkScope scope acc2) =
+    accessConcurrently (BC.UnsafeMkExclusiveAccess x y z) (BC.UnsafeMkScope scope _) =
         pure (BC.UnsafeMkScope scope (BC.UnsafeMkExclusiveAccess x y z))
 
 -- FIXME This thing is probably wrong and I don't like it.

@@ -3,51 +3,29 @@
 
 module Game where
 
-import Bluefin.Concurrent.Local qualified as BC
 import Bluefin.Eff (Eff, (:>))
-import Bluefin.Extra (ThreadSafe (accessConcurrently))
-import Bluefin.IO (effIO)
-import Bluefin.Internal qualified
 import Bluefin.State
 import Bluefin.StateSource (newState, withStateSource)
-import Bluefin.Stream (forEach)
 import Broadcast
 import Color (assignColor)
-import Control.Concurrent (threadDelay)
-import Control.Concurrent.STM qualified as STM
-import Control.Monad (forever, when)
-import Data.Aeson qualified as Aeson
-import Data.ByteString qualified as B
-import Data.ByteString.Lazy qualified as BL
+import Control.Monad (when)
 import Data.Foldable (for_)
-import Data.Graph (components)
-import Data.List (partition, sortBy)
+import Data.List (sortBy)
 import Data.List.NonEmpty qualified as NonEmpty
-import Data.Maybe (catMaybes, fromMaybe, isJust)
+import Data.Maybe (catMaybes, fromMaybe)
 import Data.Ord (comparing)
-import Data.Set (Set)
 import Data.Set qualified as Set
-import Data.Strict.Map (Map)
 import Data.Strict.Map qualified as Map
-import Data.Text (Text)
-import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
-import Data.Text.Lazy qualified as TL
-import Data.Text.Lazy.Encoding qualified as TL
 import Data.Traversable (for)
 import Datastar qualified
 import Html qualified
 import Lucid hiding (for_)
-import Lucid.Datastar (dataAttr_)
-import Queue
+import Queue (Queue, tryWriteQueue)
 import Random
 import RawSse (RawEvent (..))
-import Servant (FromHttpApiData (..))
 import Sleep
 import Store
 import Types
-import Unsafe.Coerce (unsafeCoerce)
-import WebComponents
 
 data NewPlayerStatus
     = NoNewPlayer
@@ -184,23 +162,15 @@ run
        , e4 :> es
        , e5 :> es
        , e6 :> es
-       , e7 :> es
-       , e8 :> es
-       , e9 :> es
-       , e4 :> scopeEs
        )
     => Random e1
     -> StoreWrite e2
     -> StoreRead e3
-    -> Queue User e4
-    -> Queue (User, Message) e4
-    -> BC.Scope scopeEs e5
-    -> BroadcastClient Command e6
-    -> BroadcastServer StoreUpdate e7
-    -> Queue () e8
-    -> Sleep e9
+    -> BroadcastServer StoreUpdate e4
+    -> Queue () e5
+    -> Sleep e6
     -> Eff es ()
-run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient broadcastGameStateServer mainPageQueue sleep =
+run random storeWrite storeRead broadcastGameStateServer mainPageQueue sleep =
     evalState [] \allTimeBestS -> do
         evalState [] \currentBestS -> do
             foreverWithSleep sleep 200 do
@@ -229,16 +199,14 @@ run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient
                     (Just _, Nothing) -> putNewPlayer storeWrite Nothing
                     _ -> pure ()
                 renderWebComponent <- (.useWebComponent) <$> getSettings storeRead
-                isQueueFull <- getIsQueueFull storeRead
                 anonymousMode <- (.anonymousMode) <$> getSettings storeRead
                 calculateLeaderboard allTimeBestS currentBestS newGameState.aliveSneks
                 allTimeBest <- get allTimeBestS
                 currentBest <- get currentBestS
-                queueMaxSize <- (.queueMaxSize) <$> getSettings storeRead
                 settings <- getSettings storeRead
                 isQueueFull <- getIsQueueFull storeRead
                 let settingsHtml =
-                        Html.settings
+                        Html.settingsGrid
                             (length newGameState.foodPositions)
                             isQueueFull
                             (length newGameState.aliveSneks)
@@ -266,7 +234,7 @@ maybeSpawnFood random boardSize currentFood maxFood =
         then pure Nothing
         else do
             let spareCapacity = maxFood - currentFood
-            let spawnProbability = (fromIntegral spareCapacity / fromIntegral maxFood) ^ 2
+            let spawnProbability = (fromIntegral spareCapacity / fromIntegral maxFood) ^ (2 :: Int)
             r <- random01 random
             if r < spawnProbability
                 then Just <$> randomIn random boardSize boardSize

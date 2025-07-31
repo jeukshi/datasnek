@@ -3,42 +3,20 @@ module CommandManager (run) where
 import Bluefin.Concurrent.Local qualified as BC
 import Bluefin.Eff (Eff, (:>))
 import Bluefin.Extra (ThreadSafe (accessConcurrently))
-import Bluefin.IO (effIO)
-import Bluefin.Internal qualified
-import Bluefin.State
-import Bluefin.StateSource (newState, withStateSource)
 import Bluefin.Stream (forEach)
-import Broadcast
-import Color (assignColor)
-import Control.Concurrent (threadDelay)
-import Control.Concurrent.STM qualified as STM
-import Control.Monad (forever, when)
-import Data.Aeson qualified as Aeson
-import Data.ByteString qualified as B
-import Data.ByteString.Lazy qualified as BL
-import Data.Foldable (for_)
-import Data.Graph (components)
-import Data.List (partition)
-import Data.List.NonEmpty qualified as NonEmpty
-import Data.Maybe (catMaybes, fromMaybe, isJust)
-import Data.Set (Set)
-import Data.Set qualified as Set
-import Data.Strict.Map (Map)
+import Broadcast (BroadcastClient, likeAndSubscribe)
+import Control.Monad (when)
 import Data.Strict.Map qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as T
-import Data.Text.Encoding qualified as T
-import Data.Text.Lazy qualified as TL
-import Data.Text.Lazy.Encoding qualified as TL
-import Data.Traversable (for)
-import Lucid hiding (for_)
-import Lucid.Datastar (dataAttr_)
-import Queue
-import Random
-import RawSse (RawEvent (..))
-import Servant (FromHttpApiData (..))
-import Store
-import Text.ParserCombinators.ReadP qualified as P
+import Queue (Queue, writeQueue)
+import Store (
+    StoreRead,
+    StoreWrite,
+    atomicModifySnekDirection,
+    getSettings,
+    putSettings,
+ )
 import Text.Read qualified as T
 import Types (
     ChatCanChange (..),
@@ -48,23 +26,25 @@ import Types (
     Message (..),
     Settings (..),
     SnekDirection (..),
-    StoreUpdate,
     User,
  )
-import Unsafe.Coerce (unsafeCoerce)
 
 run
-    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es, e6 :> es, e7 :> es, e4 :> scopeEs)
-    => Random e1
-    -> StoreWrite e2
-    -> StoreRead e3
-    -> Queue User e4
+    :: ( e1 :> es
+       , e2 :> es
+       , e5 :> es
+       , e6 :> es
+       , e4 :> scopeEs
+       , e3 :> scopeEs
+       )
+    => StoreWrite e1
+    -> StoreRead e2
+    -> Queue User e3
     -> Queue (User, Message) e4
     -> BC.Scope scopeEs e5
     -> BroadcastClient Command e6
-    -> BroadcastServer StoreUpdate e7
     -> Eff es ()
-run random storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient broadcastGameStateServer =
+run storeWrite storeRead gameQueue chatQueue scope broadcastCommandClient =
     forEach (likeAndSubscribe broadcastCommandClient) \case
         ChangeDirection userId newDirection -> do
             snekCanReverse <- (.snekCanReverse) <$> getSettings storeRead
@@ -120,7 +100,7 @@ data PossiblyACommand
     = CommandBool Text Bool
     | CommandInt Text Int
     | NotReally
-    deriving (Show)
+    deriving stock (Show)
 
 executeCommand :: (e :> es) => StoreWrite e -> Settings -> Text -> Eff es Bool
 executeCommand storeWrite settings text = do
@@ -176,7 +156,7 @@ executeCommand storeWrite settings text = do
         _ -> pure False
   where
     parseCommand :: Text -> PossiblyACommand
-    parseCommand text = case T.splitOn " " text of
+    parseCommand someText = case T.splitOn " " someText of
         [command, mbValue] -> case mbValue of
             "false" -> CommandBool command False
             "true" -> CommandBool command True
@@ -184,4 +164,4 @@ executeCommand storeWrite settings text = do
                 Just int -> CommandInt command int
                 Nothing -> NotReally
         _ -> NotReally
-    between val min max = val >= min && val <= max
+    between val lo hi = val >= lo && val <= hi

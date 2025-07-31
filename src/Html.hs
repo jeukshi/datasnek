@@ -6,10 +6,8 @@ import Control.Monad (unless)
 import Data.Aeson (KeyValue ((.=)))
 import Data.Aeson qualified as Aeson
 import Data.Aeson qualified as Json
-import Data.Aeson.Key qualified as Json
 import Data.ByteString.Lazy qualified as BL
 import Data.Foldable (for_)
-import Data.Functor.Identity (Identity)
 import Data.Strict.Map (Map)
 import Data.Strict.Map qualified as Map
 import Data.Strict.Set qualified as Set
@@ -24,7 +22,6 @@ import WebComponents (
     anonymous_,
     boardSize_,
     food_,
-    location_,
     snekGameBoard_,
     sneks_,
     windowController_,
@@ -70,8 +67,8 @@ renderMessage (user, message) = do
             (toHtml (user.name <> ": "))
         span_ [class_ "chat-content"] (toHtml message.text)
 
-settings :: Int -> Bool -> Int -> Settings -> Html ()
-settings foodOnBoard queueFull aliveSneks settings = div_ [id_ "settings", class_ "settings"] do
+settingsGrid :: Int -> Bool -> Int -> Settings -> Html ()
+settingsGrid foodOnBoard queueFull aliveSneks settings = div_ [id_ "settings", class_ "settings"] do
     let ccc = settings.chatCanChange
     div_ [class_ "settings-grid"] do
         settingItemInt "maxFood" settings.maxFood ccc.foodMin ccc.foodMax
@@ -136,13 +133,13 @@ leaderboardEntry anonymousMode position snek =
     div_ [class_ "leaderboard-entry"] do
         div_ [class_ "leaderboard-rank"] do
             div_ [class_ "leaderboard-position"] do toHtml (show position <> ".")
-            div_ [class_ "leaderboard-score"] do toHtml (show $ snekLength snek)
+            div_ [class_ "leaderboard-score"] do toHtml (show snekLength)
         div_
             [class_ "leaderboard-player", style_ $ "color: " <> assignColor (userIdToText snek.user.userId)]
             $ if anonymousMode then "snek" else toHtml snek.user.name
   where
-    snekLength :: Snek -> Int
-    snekLength snek = 1 + length snek.restOfSnek -- +1 for head.
+    snekLength :: Int
+    snekLength = 1 + length snek.restOfSnek -- +1 for head.
 
 pageHead :: Html () -> Html ()
 pageHead main = doctypehtml_ do
@@ -201,7 +198,7 @@ mainPage env = pageHead do
             windowController_ [id_ "window-controller"] mempty
 
 renderFrame :: Bool -> Html () -> Html () -> Html () -> Html ()
-renderFrame isQueueFull settings leaderboard board = div_ [id_ "frame-container", class_ "frame-container"] do
+renderFrame isQueueFull settings leaderboardDiv board = div_ [id_ "frame-container", class_ "frame-container"] do
     div_ [class_ "header"] do
         h1_ "Datasnek"
         unless isQueueFull do
@@ -213,7 +210,7 @@ renderFrame isQueueFull settings leaderboard board = div_ [id_ "frame-container"
                 ]
                 "Play"
     div_ [id_ "game-area", class_ "game-area"] do
-        leaderboard
+        leaderboardDiv
         board
     settings
 
@@ -290,7 +287,7 @@ encodeToText :: Aeson.Value -> Text
 encodeToText = T.decodeUtf8 . BL.toStrict . Aeson.encode
 
 snekToObject :: Snek -> Aeson.Value
-snekToObject (MkSnek (MkUser name userId) color (hx, hy) rest gracePeriod) =
+snekToObject (MkSnek (MkUser name _) color (hx, hy) rest gracePeriod) =
     Aeson.object
         [ "username" .= Aeson.String name
         , "color" .= Aeson.String color

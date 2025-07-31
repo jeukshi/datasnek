@@ -3,27 +3,20 @@
 
 module Broadcast where
 
-import Bluefin.Compound (Handle (..), makeOp, useImpl, useImplIn, useImplUnder)
-import Bluefin.Concurrent.Local qualified as BC
-import Bluefin.Eff (Eff, runEff, (:&), (:>))
+import Bluefin.Compound (Handle (mapHandle))
+import Bluefin.Eff (Eff, (:&), (:>))
 import Bluefin.Extra (ThreadSafe (..), useImplIn2)
 import Bluefin.IO (IOE, effIO)
-import Bluefin.Internal qualified
-import Bluefin.Stream (Stream, forEach, yield)
-import Control.Concurrent (forkIO, threadDelay)
+import Bluefin.Stream (Stream, yield)
 import Control.Concurrent.Chan.Unagi (
     InChan,
     dupChan,
-    getChanContents,
     newChan,
     readChan,
     writeChan,
  )
 import Control.Monad (forever)
-import Data.Foldable (for_)
-import RawSse
 import Store
-import Unsafe.Coerce (unsafeCoerce)
 
 data BroadcastClient a e = UnsafeMkBroadcastClient
     { ioe :: IOE e
@@ -40,7 +33,7 @@ instance Handle (BroadcastClient a) where
             }
 
 instance ThreadSafe (BroadcastClient a) where
-    accessConcurrently access bc@(UnsafeMkBroadcastClient io inChan store) = do
+    accessConcurrently access (UnsafeMkBroadcastClient io inChan store) = do
         localIo <- accessConcurrently access io
         localStore <- accessConcurrently access store
         pure
@@ -86,7 +79,7 @@ likeAndSubscribe
     => BroadcastClient a e
     -> Stream a e1
     -> Eff es ()
-likeAndSubscribe bc@(UnsafeMkBroadcastClient io inChan store) s = do
+likeAndSubscribe (UnsafeMkBroadcastClient io inChan _) s = do
     outChan <- effIO io do dupChan inChan
     forever do
         event <- effIO io do readChan outChan

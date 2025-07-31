@@ -4,7 +4,7 @@ import Bluefin.Compound (Handle (..), useImplIn)
 import Bluefin.Eff (Eff, (:&), (:>))
 import Bluefin.IO (IOE, effIO)
 import Control.Concurrent (newMVar)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, takeMVar)
+import Control.Concurrent.MVar (MVar, takeMVar)
 
 data Once e = UnsafeMkOnce
     { ioe :: IOE e

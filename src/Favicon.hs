@@ -14,7 +14,7 @@ import Servant.API.ContentTypes (Accept (..))
 file :: Data.ByteString.ByteString
 file = $(embedFile "static/favicon.png")
 
-data Png deriving (Typeable)
+data Png deriving stock (Typeable)
 
 instance Accept Png where
     contentType _ = "image" M.// "png"

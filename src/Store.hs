@@ -1,33 +1,24 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Store where
 
-import Bluefin.Compound (Handle (..), useImplIn)
+import Bluefin.Compound (Handle (..))
 import Bluefin.Concurrent.Local qualified as BC
 import Bluefin.Eff (Eff, (:&), (:>))
 import Bluefin.Extra
 import Bluefin.IO (IOE, effIO)
-import Color (assignColor)
-import Control.Concurrent (threadDelay)
-import Control.Concurrent.MVar (MVar, newEmptyMVar, newMVar, putMVar, takeMVar, tryReadMVar)
+import Control.Concurrent.MVar (MVar, newMVar, putMVar, takeMVar, tryReadMVar)
 import Control.Concurrent.STM (writeTVar)
 import Control.Concurrent.STM.TVar (TVar, newTVarIO, readTVar)
-import Data.ByteString.Lazy qualified as BL
 import Data.IORef
 import Data.Set (Set)
 import Data.Set qualified as Set
-import Data.Strict.Map (Map)
 import Data.Strict.Map qualified as Map
 import Datastar qualified
-import GHC.Records
 import Html qualified
-import JavaScript qualified
 import Lucid (Html)
-import Lucid.Base (renderBS)
-import Lucid.Datastar (dataBind_, dataOnKeydown_, dataShow_, dataSignals_)
-import Lucid.Html5
-import Numeric.Natural (Natural)
 import RawSse (RawEvent (..))
 import Types
 
@@ -189,106 +180,106 @@ runStore io stme env action = do
     useImplIn3 action storeRead storeWrite storeChatRead
 
 getGameFrame :: (e :> es) => StoreRead e -> Eff es RawEvent
-getGameFrame (UnsafeMkStoreRead io stme store) =
+getGameFrame (UnsafeMkStoreRead io _ store) =
     effIO io $ readIORef store.gameFrame
 
 putGameFrame :: (e :> es) => StoreWrite e -> RawEvent -> Eff es ()
-putGameFrame (UnsafeMkStoreWrite io stme store) =
+putGameFrame (UnsafeMkStoreWrite io _ store) =
     effIO io . writeIORef store.gameFrame
 
 getMainPage :: (e :> es) => StoreRead e -> Eff es RenderedHtml
-getMainPage (UnsafeMkStoreRead io stme store) = return store.mainPage
+getMainPage (UnsafeMkStoreRead _ _ store) = return store.mainPage
 
 getLoginPage :: (e :> es) => StoreRead e -> Eff es RenderedHtml
-getLoginPage (UnsafeMkStoreRead io stme store) = return store.loginPage
+getLoginPage (UnsafeMkStoreRead _ _ store) = return store.loginPage
 
 getChatEnabled :: (e :> es) => StoreRead e -> Eff es RawEvent
-getChatEnabled (UnsafeMkStoreRead io stme store) = return store.chatEnabled
+getChatEnabled (UnsafeMkStoreRead _ _ store) = return store.chatEnabled
 
 getChatDisabled :: (e :> es) => StoreRead e -> Eff es RawEvent
-getChatDisabled (UnsafeMkStoreRead io stme store) = return store.chatDisabled
+getChatDisabled (UnsafeMkStoreRead _ _ store) = return store.chatDisabled
 
 atomicModifySnekDirection
     :: (e :> es)
     => StoreWrite e
     -> (SneksDirections -> Eff es (SneksDirections, a))
     -> Eff es (SneksDirections, a)
-atomicModifySnekDirection (UnsafeMkStoreWrite io stme store) f = do
+atomicModifySnekDirection (UnsafeMkStoreWrite io _ store) f = do
     sneksDirection <- effIO io $ takeMVar store.snekDirection
     (newSneksDirections, res) <- f sneksDirection
     effIO io $ putMVar store.snekDirection newSneksDirections
     pure (newSneksDirections, res)
 
 tryReadSneksDirections :: (e :> es) => StoreRead e -> Eff es (Maybe SneksDirections)
-tryReadSneksDirections (UnsafeMkStoreRead io stme store) =
+tryReadSneksDirections (UnsafeMkStoreRead io _ store) =
     effIO io $ tryReadMVar store.snekDirection
 
 getSneks :: (e :> es) => StoreRead e -> Eff es Sneks
-getSneks (UnsafeMkStoreRead io stme store) =
+getSneks (UnsafeMkStoreRead io _ store) =
     effIO io $ readIORef store.sneks
 
 putSneks :: (e :> es) => StoreWrite e -> Sneks -> Eff es ()
-putSneks (UnsafeMkStoreWrite io stme store) =
+putSneks (UnsafeMkStoreWrite io _ store) =
     effIO io . writeIORef store.sneks
 
 getFoodPositions :: (e :> es) => StoreRead e -> Eff es (Set (Int, Int))
-getFoodPositions (UnsafeMkStoreRead io stme store) =
+getFoodPositions (UnsafeMkStoreRead io _ store) =
     effIO io $ readIORef store.foodPositions
 
 putFoodPositions :: (e :> es) => StoreWrite e -> Set (Int, Int) -> Eff es ()
-putFoodPositions (UnsafeMkStoreWrite io stme store) =
+putFoodPositions (UnsafeMkStoreWrite io _ store) =
     effIO io . writeIORef store.foodPositions
 
 getNewPlayer :: (e :> es) => StoreRead e -> Eff es (Maybe User)
-getNewPlayer (UnsafeMkStoreRead io stme store) =
+getNewPlayer (UnsafeMkStoreRead _ stme store) =
     BC.atomicallySTM stme do readTVar store.newPlayer
 
 putNewPlayer :: (e :> es) => StoreWrite e -> Maybe User -> Eff es ()
-putNewPlayer (UnsafeMkStoreWrite io stme store) user =
+putNewPlayer (UnsafeMkStoreWrite _ stme store) user =
     BC.atomicallySTM stme do writeTVar store.newPlayer user
 
 getIsQueueFull :: (e :> es) => StoreRead e -> Eff es Bool
-getIsQueueFull (UnsafeMkStoreRead io stme store) =
+getIsQueueFull (UnsafeMkStoreRead io _ store) =
     effIO io $ readIORef store.isQueueFull
 
 putIsQueueFull :: (e :> es) => StoreWrite e -> Bool -> Eff es ()
-putIsQueueFull (UnsafeMkStoreWrite io stme store) =
+putIsQueueFull (UnsafeMkStoreWrite io _ store) =
     effIO io . writeIORef store.isQueueFull
 
 getChatMessages :: (e :> es) => StoreRead e -> Eff es [(User, Message)]
-getChatMessages (UnsafeMkStoreRead io stme store) =
+getChatMessages (UnsafeMkStoreRead io _ store) =
     effIO io $ readIORef store.chatMessages
 
 putChatMessages :: (e :> es) => StoreWrite e -> [(User, Message)] -> Eff es ()
-putChatMessages (UnsafeMkStoreWrite io stme store) =
+putChatMessages (UnsafeMkStoreWrite io _ store) =
     effIO io . writeIORef store.chatMessages
 
 getChatContent :: (e :> es) => StoreRead e -> Eff es RawEvent
-getChatContent (UnsafeMkStoreRead io stme store) =
+getChatContent (UnsafeMkStoreRead io _ store) =
     effIO io $ readIORef store.chatContent
 
 putChatContent :: (e :> es) => StoreWrite e -> RawEvent -> Eff es ()
-putChatContent (UnsafeMkStoreWrite io stme store) =
+putChatContent (UnsafeMkStoreWrite io _ store) =
     effIO io . writeIORef store.chatContent
 
 getChatContentHtml :: (e :> es) => StoreRead e -> Eff es (Html ())
-getChatContentHtml (UnsafeMkStoreRead io stme store) =
+getChatContentHtml (UnsafeMkStoreRead io _ store) =
     effIO io $ readIORef store.chatContentHtml
 
 putChatContentHtml :: (e :> es) => StoreWrite e -> Html () -> Eff es ()
-putChatContentHtml (UnsafeMkStoreWrite io stme store) =
+putChatContentHtml (UnsafeMkStoreWrite io _ store) =
     effIO io . writeIORef store.chatContentHtml
 
 getSettings :: (e :> es) => StoreRead e -> Eff es Settings
-getSettings (UnsafeMkStoreRead io stme store) =
+getSettings (UnsafeMkStoreRead io _ store) =
     effIO io $ readIORef store.settings
 
 putSettings :: (e :> es) => StoreWrite e -> Settings -> Eff es ()
-putSettings (UnsafeMkStoreWrite io stme store) =
+putSettings (UnsafeMkStoreWrite io _ store) =
     effIO io . writeIORef store.settings
 
 maybeChatEnabled :: (e :> es) => StoreChatRead e -> Eff es (Maybe RawEvent)
-maybeChatEnabled (UnsafeMkStoreChatRead io stme store) = do
+maybeChatEnabled (UnsafeMkStoreChatRead io _ store) = do
     settings <- effIO io do readIORef store.settings
     case settings.chatMode of
         ChatOff -> return Nothing

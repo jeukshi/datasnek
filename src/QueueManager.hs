@@ -1,28 +1,23 @@
 module QueueManager (run) where
 
 import Bluefin.Eff
-import Bluefin.IO (effIO)
-import Bluefin.Internal qualified
 import Bluefin.State
-import Broadcast
 import Control.Monad (forever, when)
 import Queue
-import RawSse (RawEvent (..))
 import Sleep
 import Store
 import Types
 
 run
-    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es, e5 :> es)
+    :: (e1 :> es, e2 :> es, e3 :> es, e4 :> es)
     => StoreWrite e1
     -> StoreRead e2
     -> Queue User e3
-    -> BroadcastServer StoreUpdate e4
-    -> Sleep e5
+    -> Sleep e4
     -> Eff es ()
-run storeWrite storeRead queue broadcastServer sleep = do
+run storeWrite storeRead queue sleep = do
     initQueueMaxSize <- (.queueMaxSize) <$> getSettings storeRead
-    evalState initQueueMaxSize \queueSize -> do
+    evalState initQueueMaxSize \_ -> do
         forever do
             getNewPlayer storeRead >>= \case
                 Just _ -> pure ()

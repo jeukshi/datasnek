@@ -1,6 +1,6 @@
 module Sleep where
 
-import Bluefin.Compound (Handle (..), makeOp, useImpl, useImplIn, useImplUnder)
+import Bluefin.Compound (Handle (..), useImpl, useImplIn)
 import Bluefin.Eff (Eff, (:&), (:>))
 import Bluefin.Extra
 import Bluefin.IO (IOE, effIO)
@@ -39,5 +39,5 @@ foreverWithSleep (UnsafeMkSleep io) initialIntervalMs action = do
         let remainingNs = intervalNs - fromIntegral elapsedNs
         when (remainingNs > 0) $ do
             let delayUs = remainingNs `div` 1000
-            effIO io do threadDelay (fromIntegral delayUs)
-        put intervalNsS (max 0 (fromIntegral nextIntervalMs * 1_000_000))
+            effIO io do threadDelay delayUs
+        put intervalNsS (max 0 (nextIntervalMs * 1_000_000))

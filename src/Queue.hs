@@ -4,8 +4,6 @@ import Bluefin.Compound
 import Bluefin.Concurrent.Local qualified as BC
 import Bluefin.Eff
 import Bluefin.Extra
-import Bluefin.IO
-import Control.Concurrent.MVar (MVar)
 import Control.Concurrent.STM.TBQueue (
     TBQueue,
     isFullTBQueue,
@@ -15,7 +13,6 @@ import Control.Concurrent.STM.TBQueue (
     tryReadTBQueue,
     writeTBQueue,
  )
-import Control.Concurrent.STM.TVar (TVar)
 import Numeric.Natural (Natural)
 
 -- TODO make size dynamic
